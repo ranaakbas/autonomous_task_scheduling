@@ -1,0 +1,409 @@
+body {
+  margin: 0;
+  font-family: Inter, Arial, sans-serif;
+  background: linear-gradient(180deg, #f4f7ff 0%, #edf2f9 100%);
+  color: #1f2937;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 24px auto 40px;
+  padding: 0 18px;
+}
+
+.topBar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.hero h1 {
+  margin: 0 0 6px;
+}
+
+.hero p {
+  margin: 0;
+  color: #475467;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.card {
+  background: #ffffffde;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  border: 1px solid #dbe4f0;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.06);
+}
+
+.scheduleHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.scheduleHead h2 {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+button.small,
+button.tiny {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+button.tiny {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+input,
+textarea,
+button {
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #c9d4e3;
+  background: #fff;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+}
+
+.primary {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.success {
+  background: #16a34a;
+  color: #fff;
+}
+
+.danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.ghost {
+  background: #eef2ff;
+  color: #334155;
+  border: 1px solid #c8d4ff;
+}
+
+.explanation {
+  margin: 8px 0 12px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  color: #475467;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.calendarGrid {
+  margin-top: 8px;
+}
+
+.calHead,
+.calBody {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calHeadCell {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.calCell {
+  min-height: 110px;
+  border: 1px solid #d3dced;
+  border-radius: 10px;
+  padding: 6px;
+  background: #f8fbff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calCell.calPast {
+  opacity: 0.65;
+  filter: grayscale(0.15);
+}
+
+.calCell.calPast .calAvail {
+  color: #475569;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.calCellMuted {
+  min-height: 110px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px dashed #e5e9f2;
+}
+
+.calDayNum {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.calAvail {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 2px 8px;
+  width: fit-content;
+}
+
+.calChunk {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.calChunkMain {
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.calChunkTitle {
+  font-weight: 600;
+}
+
+.calChunkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 11px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.badge.done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.partial {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.badge.missed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.taskList {
+  display: grid;
+  gap: 10px;
+  max-height: 60vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.taskCard {
+  background: #f8fbff;
+  border: 1px solid #d3dced;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.taskHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.warning {
+  color: #b42318;
+  font-weight: bold;
+}
+
+.empty {
+  color: #667085;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 40;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal.hidden,
+.modalBackdrop.hidden,
+.toast.hidden {
+  display: none !important;
+}
+
+.modalPanel {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #dbe4f0;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+}
+
+.modalPanel.wide {
+  width: min(560px, 100%);
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.modalHead h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.iconBtn {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #64748b;
+  padding: 4px 8px;
+}
+
+.modalForm {
+  display: grid;
+  gap: 10px;
+}
+
+.modalForm label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.availabilityDefaults {
+  background: #f8fbff;
+  border: 1px solid #d3dced;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.availabilityDefaultsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.availabilityDefaultsTitle {
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.availabilityDefaultsForm {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.availabilityDefaultsForm input {
+  width: 110px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: #0f172a;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.toastUndo {
+  background: #fff;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 600;
+}

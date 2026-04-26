@@ -1,0 +1,39 @@
+### Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+### Virtual environments
+.venv/
+venv/
+ENV/
+
+### Environment files / secrets
+.env
+.env.*
+!.env.example
+
+### OS / Editor
+.DS_Store
+.idea/
+.vscode/
+
+### Logs
+*.log
+
+### Databases / local state
+*.db
+*.sqlite
+*.sqlite3
+
+### Frontend (if any tooling is added later)
+node_modules/
+dist/
+build/
