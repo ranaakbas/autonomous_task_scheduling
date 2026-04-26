@@ -19,6 +19,10 @@ Ogrenciler icin algoritmik, adaptif gorev planlama uygulamasi.
   - Her blok icin Partial/Completed/Missed + Undo aksiyonlari
   - Availability modalindan slot ekleme/silme
 
+## Gereksinimler
+
+- Python 3.10+ (onerilir)
+
 ## Kurulum
 
 ```bash
@@ -27,10 +31,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Opsiyonel Cohere:
+## Ortam degiskenleri (.env)
+
+Bu repo **.env dosyasini commit etmez**. Cohere kullanmak istersen:
 
 ```bash
-echo "COHERE_API_KEY=your_key_here" > .env
+cp .env.example .env
+# sonra .env icinde COHERE_API_KEY degerini doldur
 ```
 
 ## Calistirma
@@ -42,6 +49,11 @@ uvicorn app.main:app --reload
 Tarayicida:
 
 `http://127.0.0.1:8000`
+
+## Veritabani
+
+- Uygulama varsayilan olarak yerelde SQLite kullanir.
+- Yerel `.db` dosyalari (ornegin `autonomous_agent.db`) `.gitignore` ile **repoya eklenmez**.
 
 ## Mimari
 
@@ -60,3 +72,10 @@ Tarayicida:
 - `POST /reschedule`
 - `PUT /profile`
 - `GET /profile`
+
+## GitHub'a yukleme (kisa)
+
+```bash
+git remote add origin <REPO_URL>
+git push -u origin main
+```
