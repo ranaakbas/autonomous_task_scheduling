@@ -138,9 +138,9 @@ async function fetchPlan() {
 
 function statusIcon(status) {
   if (status === "completed")
-    return '<span class="badge done" title="Tamamlandı">✓</span>';
+    return '<span class="badge done" title="Completed">✓</span>';
   if (status === "missed")
-    return '<span class="badge missed" title="Kaçırıldı">✗</span>';
+    return '<span class="badge missed" title="Missed">✗</span>';
   return "";
 }
 
@@ -163,7 +163,7 @@ function recomputeAvailabilityHours(slots) {
     if (s.type && s.type !== "available") return;
     if (s.available_hours != null) {
       const n = Number(s.available_hours);
-      if (Number.isFinite(n) && n > 0) {
+      if (Number.isFinite(n) && n >= 0) {
         const prev = availabilityHoursByDate.get(s.date) || 0;
         availabilityHoursByDate.set(s.date, prev + n);
         return;
@@ -180,8 +180,10 @@ function recomputeAvailabilityHours(slots) {
 }
 
 function availabilityForISO(iso) {
-  const explicit = availabilityHoursByDate.get(iso);
-  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  if (availabilityHoursByDate.has(iso)) {
+    const explicit = availabilityHoursByDate.get(iso);
+    if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  }
   return defaultDailyCapacity;
 }
 
@@ -214,15 +216,15 @@ async function completeChunkWithPrompt(chunk) {
     { label: "100% (Completed)", value: assigned },
   ];
   const msg =
-    `Bu blok için kaç saat tamamladın?\n` +
+    `How many hours did you complete for this block?\n` +
     `Assigned: ${formatHours(assigned)}h\n\n` +
     opts.map((o) => `- ${o.label}: ${formatHours(o.value)}h`).join("\n") +
-    `\n\nSaat gir (örn 1.5) veya boş bırak (iptal):`;
+    `\n\nEnter hours (e.g. 1.5) or leave empty (cancel):`;
   const raw = prompt(msg, `${formatHours(assigned)}`);
   if (raw === null) return null;
   const val = Number(raw);
   if (!Number.isFinite(val) || val < 0 || val > assigned + 1e-9) {
-    showToast("Geçersiz saat girdin.");
+    showToast("You entered an invalid number of hours.");
     return null;
   }
   const res = await fetch(`/schedule-items/${chunk.id}`, {
@@ -235,23 +237,23 @@ async function completeChunkWithPrompt(chunk) {
 
 function renderCalendar() {
   const monthNames = [
-    "Ocak",
-    "Şubat",
-    "Mart",
-    "Nisan",
-    "Mayıs",
-    "Haziran",
-    "Temmuz",
-    "Ağustos",
-    "Eylül",
-    "Ekim",
-    "Kasım",
-    "Aralık",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
   monthLabel.textContent = `${monthNames[viewMonth]} ${viewYear}`;
 
   calendarGrid.innerHTML = "";
-  const weekdays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const head = document.createElement("div");
   head.className = "calHead";
   weekdays.forEach((w) => {
@@ -356,19 +358,19 @@ async function fetchTasksForModal() {
   const tasks = await fetchJson("/tasks?include_completed=true");
   taskList.innerHTML = "";
   if (!tasks.length) {
-    taskList.innerHTML = `<p class="empty">Görev yok.</p>`;
+    taskList.innerHTML = `<p class="empty">No tasks.</p>`;
     return;
   }
   tasks.forEach((task) => {
     const card = document.createElement("div");
     card.className = "taskCard";
-    const doneLabel = task.completed ? " (tamamlandı)" : "";
+    const doneLabel = task.completed ? " (completed)" : "";
     card.innerHTML = `
       <div class="taskHead">
         <strong>${task.title}</strong>
         <span>${task.deadline}</span>
       </div>
-      <p class="muted">${task.total_duration}h plan | ${task.remaining_duration}h kalan | zorluk ${task.difficulty}${doneLabel}</p>
+      <p class="muted">${task.total_duration}h planned | ${task.remaining_duration}h remaining | difficulty ${task.difficulty}${doneLabel}</p>
     `;
 
     const actions = document.createElement("div");
@@ -395,7 +397,7 @@ async function fetchTasksForModal() {
           body: JSON.stringify({ completed: true }),
         });
         setModal(false, "tasks");
-        showToast("Görev tamamlandı.", async () => {
+        showToast("Task completed.", async () => {
           await fetch(`/tasks/${task.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -416,7 +418,7 @@ async function fetchTasksForModal() {
     delBtn.textContent = "Delete";
     delBtn.className = "danger";
     delBtn.onclick = async () => {
-      if (!confirm("Silinsin mi?")) return;
+      if (!confirm("Delete this task?")) return;
       await fetch(`/tasks/${task.id}`, { method: "DELETE" });
       await refreshPlanAndTasksStrip();
       await fetchTasksForModal();
@@ -460,7 +462,7 @@ async function fetchAvailabilityForModal() {
     (s) => !s.type || s.type === "available",
   );
   if (!availableOnly.length) {
-    availabilityList.innerHTML = `<p class="empty">Slot yok. (Bu gün için boş saat girmediysen default kapasite kullanılacak.)</p>`;
+    availabilityList.innerHTML = `<p class="empty">No slots. (If you did not enter available hours for this day, default capacity will be used.)</p>`;
     return;
   }
   availableOnly.forEach((s) => {
@@ -525,7 +527,7 @@ if (defaultAvailabilityForm) {
         : "";
       const val = Number(raw);
       if (!Number.isFinite(val) || val <= 0 || val > 24) {
-        showToast("Default availability 0-24 saat arasında olmalı.");
+        showToast("Default availability must be between 0 and 24 hours.");
         return;
       }
       await fetchJson("/profile", {
@@ -535,9 +537,9 @@ if (defaultAvailabilityForm) {
       });
       defaultDailyCapacity = val;
       await refreshPlanAndTasksStrip();
-      showToast("Default availability güncellendi.");
+      showToast("Default availability updated.");
     } catch (err) {
-      showToast(`Güncellenemedi. ${err.message}`);
+      showToast(`Could not update. ${err.message}`);
     }
   });
 }
@@ -557,9 +559,9 @@ availabilityForm.addEventListener("submit", async (e) => {
     availabilityForm.reset();
     await fetchAvailabilityForModal();
     await refreshPlanAndTasksStrip();
-    showToast("Availability slot eklendi.");
+    showToast("Availability slot added.");
   } catch (err) {
-    showToast(`Slot eklenemedi. ${err.message}`);
+    showToast(`Could not add slot. ${err.message}`);
   }
 });
 
@@ -615,9 +617,9 @@ taskForm.addEventListener("submit", async (e) => {
     taskForm.reset();
     setModal(false, "create");
     await refreshPlanAndTasksStrip();
-    showToast("Task oluşturuldu.");
+    showToast("Task created.");
   } catch (err) {
-    showToast(`Task oluşturulamadı. ${err.message}`);
+    showToast(`Could not create task. ${err.message}`);
   }
 });
 

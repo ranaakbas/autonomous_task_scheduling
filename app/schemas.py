@@ -73,7 +73,7 @@ class AvailabilitySlotBase(BaseModel):
     # Legacy storage uses start/end times, but UI uses direct hour amount.
     start_time: Optional[str] = None  # HH:MM
     end_time: Optional[str] = None  # HH:MM
-    available_hours: Optional[float] = Field(default=None, gt=0, le=24)
+    available_hours: Optional[float] = Field(default=None, ge=0, le=24)
     # "blocked" is removed: only explicit available windows are supported.
     type: Literal["available"] = "available"
 

@@ -553,7 +553,31 @@ def create_availability(
     db.add(db_slot)
     db.commit()
     db.refresh(db_slot)
-    return db_slot
+    return _serialize_availability_slot(db_slot)
+
+
+def _serialize_availability_slot(slot: models.AvailabilitySlot) -> dict:
+    def parse_hhmm(s: str) -> float:
+        hh, mm = str(s).split(":")
+        return int(hh) + int(mm) / 60.0
+
+    hours = None
+    try:
+        start = parse_hhmm(slot.start_time)
+        end = parse_hhmm(slot.end_time)
+        hours = max(0.0, end - start)
+    except Exception:
+        # Keep compatibility with legacy/invalid rows.
+        hours = None
+
+    return {
+        "id": slot.id,
+        "date": slot.date,
+        "start_time": slot.start_time,
+        "end_time": slot.end_time,
+        "type": slot.type,
+        "available_hours": hours,
+    }
 
 
 @app.get("/availability", response_model=list[schemas.AvailabilitySlotOut])
@@ -571,9 +595,10 @@ def list_availability(
         q = q.filter(models.AvailabilitySlot.date >= start.date())
     if end:
         q = q.filter(models.AvailabilitySlot.date <= end.date())
-    return q.order_by(
+    slots = q.order_by(
         models.AvailabilitySlot.date.asc(), models.AvailabilitySlot.start_time.asc()
     ).all()
+    return [_serialize_availability_slot(s) for s in slots]
 
 
 @app.delete("/availability/{slot_id}")
