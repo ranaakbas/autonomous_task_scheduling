@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,12 +11,15 @@
       <header class="topBar">
         <div class="hero">
           <h1>Study Planner Agent</h1>
-          <p>Deadline’a yetişecek şekilde plan; günlük en fazla 24 saat.</p>
         </div>
         <div class="headerActions">
-          <button type="button" id="openAvailabilityBtn" class="ghost">Availability</button>
+          <button type="button" id="openAvailabilityBtn" class="ghost">
+            Availability
+          </button>
           <button type="button" id="openTasksBtn" class="ghost">Tasks</button>
-          <button type="button" id="openCreateBtn" class="primary">Create Task</button>
+          <button type="button" id="openCreateBtn" class="primary">
+            Create Task
+          </button>
         </div>
       </header>
 
@@ -24,9 +27,23 @@
         <div class="scheduleHead">
           <h2>Schedule</h2>
           <div class="monthNav">
-            <button type="button" id="prevMonthBtn" class="ghost" aria-label="Önceki ay">←</button>
+            <button
+              type="button"
+              id="prevMonthBtn"
+              class="ghost"
+              aria-label="Previous month"
+            >
+              ←
+            </button>
             <span id="monthLabel"></span>
-            <button type="button" id="nextMonthBtn" class="ghost" aria-label="Sonraki ay">→</button>
+            <button
+              type="button"
+              id="nextMonthBtn"
+              class="ghost"
+              aria-label="Next month"
+            >
+              →
+            </button>
           </div>
           <button id="rescheduleBtn" class="primary small">Reschedule</button>
         </div>
@@ -36,52 +53,115 @@
       </section>
     </main>
 
-    <div id="modalBackdrop" class="modalBackdrop hidden" aria-hidden="true"></div>
+    <div
+      id="modalBackdrop"
+      class="modalBackdrop hidden"
+      aria-hidden="true"
+    ></div>
 
-    <div id="createModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+    <div
+      id="createModal"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="createTitle"
+    >
       <div class="modalPanel">
         <div class="modalHead">
           <h2 id="createTitle">Create Task</h2>
-          <button type="button" class="iconBtn" id="closeCreateBtn" aria-label="Kapat">×</button>
+          <button
+            type="button"
+            class="iconBtn"
+            id="closeCreateBtn"
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
         <form id="taskForm" class="modalForm">
-          <label>Title<input name="title" placeholder="Task title" required /></label>
+          <label
+            >Title<input name="title" placeholder="Task title" required
+          /></label>
           <label>Deadline<input name="deadline" type="date" required /></label>
-          <label>Hours<input name="total_duration" type="number" min="0.25" step="0.25" required /></label>
-          <label>Difficulty (1–5)<input name="difficulty" type="number" min="1" max="5" required /></label>
+          <label
+            >Hours<input
+              name="total_duration"
+              type="number"
+              min="0.25"
+              step="0.25"
+              required
+          /></label>
+          <label
+            >Difficulty (1–5)<input
+              name="difficulty"
+              type="number"
+              min="1"
+              max="5"
+              required
+          /></label>
           <button type="submit" class="primary">Save</button>
         </form>
       </div>
     </div>
 
-    <div id="tasksModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tasksTitle">
+    <div
+      id="tasksModal"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tasksTitle"
+    >
       <div class="modalPanel wide">
         <div class="modalHead">
           <h2 id="tasksTitle">All tasks</h2>
-          <button type="button" class="iconBtn" id="closeTasksBtn" aria-label="Kapat">×</button>
+          <button
+            type="button"
+            class="iconBtn"
+            id="closeTasksBtn"
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
         <div id="taskList" class="taskList"></div>
       </div>
     </div>
 
-    <div id="availabilityModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="availabilityTitle">
+    <div
+      id="availabilityModal"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="availabilityTitle"
+    >
       <div class="modalPanel wide">
         <div class="modalHead">
           <h2 id="availabilityTitle">Availability</h2>
-          <button type="button" class="iconBtn" id="closeAvailabilityBtn" aria-label="Kapat">×</button>
+          <button
+            type="button"
+            class="iconBtn"
+            id="closeAvailabilityBtn"
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
         <div class="availabilityDefaults">
           <div class="availabilityDefaultsRow">
             <div>
-              <div class="availabilityDefaultsTitle">Default daily availability</div>
-              <div class="muted">Bir güne özel saat girmezsen bu değer kullanılır.</div>
+              <div class="availabilityDefaultsTitle">
+                Default daily availability
+              </div>
+              <div class="muted">
+                Used when you don’t set a specific day’s availability.
+              </div>
             </div>
             <form id="defaultAvailabilityForm" class="availabilityDefaultsForm">
               <input
                 name="daily_capacity"
                 id="defaultDailyCapacityInput"
                 type="number"
-                min="0.25"
+                min="0"
                 max="24"
                 step="0.25"
                 required
@@ -90,33 +170,77 @@
             </form>
           </div>
         </div>
-        <div style="height:10px;"></div>
+        <div style="height: 10px"></div>
         <form id="availabilityForm" class="modalForm">
           <label>Date<input name="date" type="date" required /></label>
           <label>
             Available hours
-            <input name="available_hours" type="number" min="0.25" max="24" step="0.25" required />
+            <input
+              name="available_hours"
+              type="number"
+              min="0"
+              max="24"
+              step="0.25"
+              required
+            />
           </label>
           <input type="hidden" name="type" value="available" />
           <button type="submit" class="primary">Add slot</button>
         </form>
-        <div style="height:12px;"></div>
+        <div style="height: 12px"></div>
         <div id="availabilityList" class="taskList"></div>
       </div>
     </div>
 
-    <div id="editModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <div
+      id="editModal"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="editTitle"
+    >
       <div class="modalPanel">
         <div class="modalHead">
           <h2 id="editTitle">Edit task</h2>
-          <button type="button" class="iconBtn" id="closeEditBtn" aria-label="Kapat">×</button>
+          <button
+            type="button"
+            class="iconBtn"
+            id="closeEditBtn"
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
         <form id="editForm" class="modalForm">
           <input type="hidden" name="id" id="editTaskId" />
-          <label>Title<input name="title" id="editTitleInput" required /></label>
-          <label>Deadline (date)<input name="deadline" id="editDeadlineInput" type="date" required /></label>
-          <label>Hours<input name="total_duration" id="editHoursInput" type="number" min="0.25" step="0.25" required /></label>
-          <label>Difficulty<input name="difficulty" id="editDifficultyInput" type="number" min="1" max="5" required /></label>
+          <label
+            >Title<input name="title" id="editTitleInput" required
+          /></label>
+          <label
+            >Deadline (date)<input
+              name="deadline"
+              id="editDeadlineInput"
+              type="date"
+              required
+          /></label>
+          <label
+            >Hours<input
+              name="total_duration"
+              id="editHoursInput"
+              type="number"
+              min="0.25"
+              step="0.25"
+              required
+          /></label>
+          <label
+            >Difficulty<input
+              name="difficulty"
+              id="editDifficultyInput"
+              type="number"
+              min="1"
+              max="5"
+              required
+          /></label>
           <button type="submit" class="primary">Save changes</button>
         </form>
       </div>

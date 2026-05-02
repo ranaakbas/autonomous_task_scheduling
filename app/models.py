@@ -37,7 +37,7 @@ class ScheduleItem(Base):
     # We keep it and treat it as assigned_duration.
     duration = Column(Float, nullable=False)
     completed_duration = Column(Float, nullable=False, default=0.0)
-    status = Column(String, nullable=False, default="pending")  # pending|partial|completed|missed
+    status = Column(String, nullable=False, default="pending")  # pending|completed|missed
     handled_at = Column(DateTime(timezone=True), nullable=True)
 
 

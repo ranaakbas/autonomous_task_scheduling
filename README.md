@@ -6,17 +6,17 @@ Ogrenciler icin algoritmik, adaptif gorev planlama uygulamasi.
 
 - FastAPI backend + SQLite veritabani
 - Strict gorev modeli: `title`, `deadline`, `total_duration`, `remaining_duration`, `difficulty`, `completed`
-- Takvim tabanli schedule modeli: gunluk bloklar ve durum takibi (`pending`, `partial`, `completed`, `missed`)
+- Takvim tabanli schedule modeli: gunluk bloklar ve durum takibi (`pending`, `completed`, `missed`)
 - Deadline-first + dengeli dagitim ile otomatik planlama
-- **Partial completion**: her blok icin "kac saat yaptin?" girisi (kismi tamamlanma destekli)
-- **Undo (5sn)**: Done/Missed/Partial aksiyonlari 5 saniye icinde geri alinabilir (event/action log tabanli)
+- Her blok icin "kac saat yaptin?" girisi; 0 saat = `missed`, 0'dan buyuk = `completed`
+- **Undo (5sn)**: Completed/Missed aksiyonlari 5 saniye icinde geri alinabilir (event/action log tabanli)
 - **User availability constraints**:
   - Gunluk kapasite, `AvailabilitySlot` girdilerine gore dinamik hesaplanir (blocked/available)
   - Varsayilan: gun 24 saat musait kabul edilir, blocked slotlar dusulur
 - Modalli modern frontend:
   - Aylik takvim
   - Task olusturma/duzenleme/silme
-  - Her blok icin Partial/Completed/Missed + Undo aksiyonlari
+  - Her blok icin Completed/Missed + Undo aksiyonlari
   - Availability modalindan slot ekleme/silme
 
 ## Gereksinimler

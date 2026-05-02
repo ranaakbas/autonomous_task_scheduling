@@ -10,8 +10,12 @@ const taskForm = document.getElementById("taskForm");
 const editForm = document.getElementById("editForm");
 const availabilityForm = document.getElementById("availabilityForm");
 const availabilityList = document.getElementById("availabilityList");
-const defaultAvailabilityForm = document.getElementById("defaultAvailabilityForm");
-const defaultDailyCapacityInput = document.getElementById("defaultDailyCapacityInput");
+const defaultAvailabilityForm = document.getElementById(
+  "defaultAvailabilityForm",
+);
+const defaultDailyCapacityInput = document.getElementById(
+  "defaultDailyCapacityInput",
+);
 
 const modalBackdrop = document.getElementById("modalBackdrop");
 const createModal = document.getElementById("createModal");
@@ -65,7 +69,8 @@ function setModal(open, which) {
   if (which === "create") createModal.classList.toggle("hidden", !open);
   if (which === "tasks") tasksModal.classList.toggle("hidden", !open);
   if (which === "edit") editModal.classList.toggle("hidden", !open);
-  if (which === "availability") availabilityModal.classList.toggle("hidden", !open);
+  if (which === "availability")
+    availabilityModal.classList.toggle("hidden", !open);
 }
 
 function showToast(message, onUndo, ms = 8000) {
@@ -132,9 +137,10 @@ async function fetchPlan() {
 }
 
 function statusIcon(status) {
-  if (status === "completed") return '<span class="badge done" title="Tamamlandı">✓</span>';
-  if (status === "partial") return '<span class="badge partial" title="Kısmi">◐</span>';
-  if (status === "missed") return '<span class="badge missed" title="Kaçırıldı">✗</span>';
+  if (status === "completed")
+    return '<span class="badge done" title="Tamamlandı">✓</span>';
+  if (status === "missed")
+    return '<span class="badge missed" title="Kaçırıldı">✗</span>';
   return "";
 }
 
@@ -177,6 +183,25 @@ function availabilityForISO(iso) {
   const explicit = availabilityHoursByDate.get(iso);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
   return defaultDailyCapacity;
+}
+
+function consumedCompletedHoursForISO(iso) {
+  const tasks = lastPlanByDate.get(iso) || [];
+  return tasks.reduce((sum, t) => {
+    if (t.status !== "completed") return sum;
+    const completed = Number(t.completed_duration);
+    if (Number.isFinite(completed) && completed > 0) return sum + completed;
+    const assigned = Number(t.assigned_duration);
+    if (Number.isFinite(assigned) && assigned > 0) return sum + assigned;
+    return sum;
+  }, 0);
+}
+
+function effectiveAvailabilityForISO(iso) {
+  const base = Number(availabilityForISO(iso));
+  const consumed = consumedCompletedHoursForISO(iso);
+  if (!Number.isFinite(base)) return 0;
+  return Math.max(0, base - consumed);
 }
 
 async function completeChunkWithPrompt(chunk) {
@@ -252,7 +277,11 @@ function renderCalendar() {
       return;
     }
     const iso = toISODate(cellDate);
-    const cmp = new Date(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
+    const cmp = new Date(
+      cellDate.getFullYear(),
+      cellDate.getMonth(),
+      cellDate.getDate(),
+    );
     if (cmp < today) cell.classList.add("calPast");
     const dayNum = document.createElement("div");
     dayNum.className = "calDayNum";
@@ -261,7 +290,7 @@ function renderCalendar() {
 
     const avail = document.createElement("div");
     avail.className = "calAvail";
-    avail.textContent = `${formatHours(availabilityForISO(iso))}h available`;
+    avail.textContent = `${formatHours(effectiveAvailabilityForISO(iso))}h available`;
     cell.appendChild(avail);
 
     const tasks = lastPlanByDate.get(iso) || [];
@@ -278,7 +307,9 @@ function renderCalendar() {
       const assignedH = Number(t.assigned_duration);
       const completedH = Number(t.completed_duration);
       const hoursLabel =
-        t.status === "partial" && Number.isFinite(completedH)
+        t.status === "completed" &&
+        Number.isFinite(completedH) &&
+        completedH + 1e-9 < assignedH
           ? `${formatHours(completedH)}h / ${formatHours(assignedH)}h`
           : `${formatHours(assignedH)}h`;
       left.innerHTML = `${statusIcon(t.status)} <span class="calChunkTitle">${t.task}</span> <span class="muted">${hoursLabel}</span>`;
@@ -302,7 +333,9 @@ function renderCalendar() {
         undo.textContent = "Undo";
         undo.className = "ghost tiny";
         undo.onclick = async () => {
-          const res = await fetch(`/schedule-items/${t.id}/undo`, { method: "POST" });
+          const res = await fetch(`/schedule-items/${t.id}/undo`, {
+            method: "POST",
+          });
           applyPlanPayload(await res.json());
         };
         actions.appendChild(undo);
@@ -366,7 +399,10 @@ async function fetchTasksForModal() {
           await fetch(`/tasks/${task.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ completed: false, remaining_duration: prevRemaining }),
+            body: JSON.stringify({
+              completed: false,
+              remaining_duration: prevRemaining,
+            }),
           });
           await refreshPlanAndTasksStrip();
         });
@@ -393,9 +429,14 @@ async function fetchTasksForModal() {
 }
 
 async function refreshPlanAndTasksStrip() {
-  const [profile, slots] = await Promise.all([fetchJson("/profile"), fetchJson("/availability")]);
-  defaultDailyCapacity = Number(profile?.daily_capacity) || defaultDailyCapacity;
-  if (defaultDailyCapacityInput) defaultDailyCapacityInput.value = `${defaultDailyCapacity}`;
+  const [profile, slots] = await Promise.all([
+    fetchJson("/profile"),
+    fetchJson("/availability"),
+  ]);
+  defaultDailyCapacity =
+    Number(profile?.daily_capacity) || defaultDailyCapacity;
+  if (defaultDailyCapacityInput)
+    defaultDailyCapacityInput.value = `${defaultDailyCapacity}`;
   recomputeAvailabilityHours(slots);
   await fetchPlan();
 }
@@ -415,7 +456,9 @@ closeTasksBtn.addEventListener("click", () => setModal(false, "tasks"));
 async function fetchAvailabilityForModal() {
   const slots = await fetchJson("/availability");
   availabilityList.innerHTML = "";
-  const availableOnly = (slots || []).filter((s) => !s.type || s.type === "available");
+  const availableOnly = (slots || []).filter(
+    (s) => !s.type || s.type === "available",
+  );
   if (!availableOnly.length) {
     availabilityList.innerHTML = `<p class="empty">Slot yok. (Bu gün için boş saat girmediysen default kapasite kullanılacak.)</p>`;
     return;
@@ -460,20 +503,26 @@ openAvailabilityBtn.addEventListener("click", async () => {
   await fetchAvailabilityForModal();
   try {
     const profile = await fetchJson("/profile");
-    defaultDailyCapacity = Number(profile?.daily_capacity) || defaultDailyCapacity;
-    if (defaultDailyCapacityInput) defaultDailyCapacityInput.value = `${defaultDailyCapacity}`;
+    defaultDailyCapacity =
+      Number(profile?.daily_capacity) || defaultDailyCapacity;
+    if (defaultDailyCapacityInput)
+      defaultDailyCapacityInput.value = `${defaultDailyCapacity}`;
   } catch (_) {
     // ignore; keep last known default
   }
   setModal(true, "availability");
 });
-closeAvailabilityBtn.addEventListener("click", () => setModal(false, "availability"));
+closeAvailabilityBtn.addEventListener("click", () =>
+  setModal(false, "availability"),
+);
 
 if (defaultAvailabilityForm) {
   defaultAvailabilityForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
-      const raw = defaultDailyCapacityInput ? defaultDailyCapacityInput.value : "";
+      const raw = defaultDailyCapacityInput
+        ? defaultDailyCapacityInput.value
+        : "";
       const val = Number(raw);
       if (!Number.isFinite(val) || val <= 0 || val > 24) {
         showToast("Default availability 0-24 saat arasında olmalı.");
@@ -498,7 +547,8 @@ availabilityForm.addEventListener("submit", async (e) => {
   try {
     const formData = new FormData(availabilityForm);
     const payload = Object.fromEntries(formData.entries());
-    if (payload.available_hours != null) payload.available_hours = Number(payload.available_hours);
+    if (payload.available_hours != null)
+      payload.available_hours = Number(payload.available_hours);
     await fetchJson("/availability", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

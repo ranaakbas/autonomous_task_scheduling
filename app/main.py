@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 import json
 
 from dotenv import load_dotenv
@@ -23,32 +23,91 @@ def ensure_schema_updates() -> None:
     with engine.begin() as conn:
         task_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(tasks)"))}
         if "total_duration" not in task_cols and "estimated_duration" in task_cols:
-            conn.execute(text("ALTER TABLE tasks ADD COLUMN total_duration FLOAT DEFAULT 0"))
-            conn.execute(text("UPDATE tasks SET total_duration = estimated_duration WHERE total_duration = 0"))
+            conn.execute(
+                text("ALTER TABLE tasks ADD COLUMN total_duration FLOAT DEFAULT 0")
+            )
+            conn.execute(
+                text(
+                    "UPDATE tasks SET total_duration = estimated_duration WHERE total_duration = 0"
+                )
+            )
         if "estimated_duration" in task_cols and "total_duration" in task_cols:
-            conn.execute(text("UPDATE tasks SET estimated_duration = total_duration WHERE estimated_duration != total_duration"))
+            conn.execute(
+                text(
+                    "UPDATE tasks SET estimated_duration = total_duration WHERE estimated_duration != total_duration"
+                )
+            )
         if "remaining_duration" not in task_cols:
-            conn.execute(text("ALTER TABLE tasks ADD COLUMN remaining_duration FLOAT DEFAULT 0"))
-            conn.execute(text("UPDATE tasks SET remaining_duration = total_duration WHERE remaining_duration = 0"))
+            conn.execute(
+                text("ALTER TABLE tasks ADD COLUMN remaining_duration FLOAT DEFAULT 0")
+            )
+            conn.execute(
+                text(
+                    "UPDATE tasks SET remaining_duration = total_duration WHERE remaining_duration = 0"
+                )
+            )
         if "remaining_duration" in task_cols and "total_duration" in task_cols:
-            conn.execute(text("UPDATE tasks SET remaining_duration = total_duration WHERE remaining_duration > total_duration"))
+            conn.execute(
+                text(
+                    "UPDATE tasks SET remaining_duration = total_duration WHERE remaining_duration > total_duration"
+                )
+            )
 
-        profile_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(user_profile)"))}
+        profile_cols = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(user_profile)"))
+        }
         if "max_capacity" not in profile_cols:
-            conn.execute(text("ALTER TABLE user_profile ADD COLUMN max_capacity FLOAT DEFAULT 24.0"))
-        conn.execute(text("UPDATE user_profile SET max_capacity = 24.0 WHERE max_capacity IS NULL OR max_capacity <= 0"))
+            conn.execute(
+                text(
+                    "ALTER TABLE user_profile ADD COLUMN max_capacity FLOAT DEFAULT 24.0"
+                )
+            )
+        conn.execute(
+            text(
+                "UPDATE user_profile SET max_capacity = 24.0 WHERE max_capacity IS NULL OR max_capacity <= 0"
+            )
+        )
 
-        schedule_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(schedule_items)"))}
+        schedule_cols = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(schedule_items)"))
+        }
         if "status" not in schedule_cols:
-            conn.execute(text("ALTER TABLE schedule_items ADD COLUMN status VARCHAR DEFAULT 'pending'"))
+            conn.execute(
+                text(
+                    "ALTER TABLE schedule_items ADD COLUMN status VARCHAR DEFAULT 'pending'"
+                )
+            )
         if "handled_at" not in schedule_cols:
-            conn.execute(text("ALTER TABLE schedule_items ADD COLUMN handled_at DATETIME"))
+            conn.execute(
+                text("ALTER TABLE schedule_items ADD COLUMN handled_at DATETIME")
+            )
         if "completed_duration" not in schedule_cols:
-            conn.execute(text("ALTER TABLE schedule_items ADD COLUMN completed_duration FLOAT DEFAULT 0"))
-        conn.execute(text("UPDATE schedule_items SET status = 'pending' WHERE status = 'planned'"))
-        conn.execute(text("UPDATE schedule_items SET status = 'completed' WHERE status = 'done'"))
-        conn.execute(text("UPDATE schedule_items SET handled_at = NULL WHERE status = 'pending'"))
-        conn.execute(text("UPDATE schedule_items SET completed_duration = 0 WHERE completed_duration IS NULL"))
+            conn.execute(
+                text(
+                    "ALTER TABLE schedule_items ADD COLUMN completed_duration FLOAT DEFAULT 0"
+                )
+            )
+        conn.execute(
+            text(
+                "UPDATE schedule_items SET status = 'pending' WHERE status = 'planned'"
+            )
+        )
+        conn.execute(
+            text("UPDATE schedule_items SET status = 'completed' WHERE status = 'done'")
+        )
+        conn.execute(
+            text(
+                "UPDATE schedule_items SET status = 'completed' WHERE status = 'partial'"
+            )
+        )
+        conn.execute(
+            text("UPDATE schedule_items SET handled_at = NULL WHERE status = 'pending'")
+        )
+        conn.execute(
+            text(
+                "UPDATE schedule_items SET completed_duration = 0 WHERE completed_duration IS NULL"
+            )
+        )
 
         # New tables (create_all already handles it, but sqlite may need explicit creation
         # when existing db was created before models were added).
@@ -103,6 +162,11 @@ def read_index():
 
 @app.post("/tasks", response_model=schemas.TaskOut)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    if task.deadline < date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="RED ALERT: You cannot create a task with a past deadline.",
+        )
     payload = task.model_dump()
     payload["remaining_duration"] = payload["total_duration"]
     payload["estimated_duration"] = payload["total_duration"]
@@ -114,7 +178,9 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/tasks", response_model=list[schemas.TaskOut])
-def list_tasks(include_completed: bool = Query(default=False), db: Session = Depends(get_db)):
+def list_tasks(
+    include_completed: bool = Query(default=False), db: Session = Depends(get_db)
+):
     query = db.query(models.Task).order_by(models.Task.deadline.asc())
     if not include_completed:
         query = query.filter(models.Task.completed.is_(False))
@@ -122,13 +188,20 @@ def list_tasks(include_completed: bool = Query(default=False), db: Session = Dep
 
 
 @app.patch("/tasks/{task_id}", response_model=schemas.TaskOut)
-def update_task(task_id: int, update: schemas.TaskUpdate, db: Session = Depends(get_db)):
+def update_task(
+    task_id: int, update: schemas.TaskUpdate, db: Session = Depends(get_db)
+):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     patch = update.model_dump(exclude_none=True)
     patch.pop("remaining_duration", None)
     completed_in = patch.pop("completed", None)
+    if update.deadline is not None and update.deadline < date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="RED ALERT: You cannot set a task deadline in the past.",
+        )
     old_est = db_task.total_duration
     old_rem = db_task.remaining_duration
     for key, value in patch.items():
@@ -139,10 +212,63 @@ def update_task(task_id: int, update: schemas.TaskUpdate, db: Session = Depends(
         if new_est < old_est:
             db_task.remaining_duration = min(old_rem, new_est)
         else:
-            db_task.remaining_duration = min(new_est, old_rem + max(0.0, new_est - old_est))
+            db_task.remaining_duration = min(
+                new_est, old_rem + max(0.0, new_est - old_est)
+            )
     if completed_in is True:
+        rows = (
+            db.query(models.ScheduleItem).order_by(models.ScheduleItem.id.asc()).all()
+        )
+        schedule_snapshot = [
+            {
+                "id": r.id,
+                "task_id": r.task_id,
+                "date": r.date.isoformat(),
+                "duration": float(r.duration),
+                "completed_duration": float(
+                    getattr(r, "completed_duration", 0.0) or 0.0
+                ),
+                "status": r.status,
+                "handled_at": r.handled_at.isoformat() if r.handled_at else None,
+            }
+            for r in rows
+        ]
+        prev_state = {
+            "task": {
+                "id": db_task.id,
+                "remaining_duration": float(old_rem),
+                "completed": bool(db_task.completed),
+            },
+            "schedule_snapshot": schedule_snapshot,
+        }
         db_task.completed = True
         db_task.remaining_duration = 0.0
+        now = datetime.now(timezone.utc)
+        # Keep calendar history: convert pending chunks to completed instead of deleting them.
+        (
+            db.query(models.ScheduleItem)
+            .filter(
+                models.ScheduleItem.task_id == db_task.id,
+                models.ScheduleItem.status == "pending",
+            )
+            .update(
+                {
+                    models.ScheduleItem.status: "completed",
+                    models.ScheduleItem.completed_duration: models.ScheduleItem.duration,
+                    models.ScheduleItem.handled_at: now,
+                },
+                synchronize_session=False,
+            )
+        )
+        db.add(
+            models.ActionLog(
+                action_type="task_complete",
+                schedule_id=None,
+                task_id=db_task.id,
+                expires_at=datetime.utcnow() + timedelta(days=3650),
+                previous_state=json.dumps(prev_state),
+            )
+        )
     elif completed_in is False:
         db_task.completed = False
     if update.remaining_duration is not None and not db_task.completed:
@@ -153,13 +279,66 @@ def update_task(task_id: int, update: schemas.TaskUpdate, db: Session = Depends(
     return db_task
 
 
+@app.post("/tasks/{task_id}/undo-complete", response_model=schemas.PlanResponse)
+def undo_task_complete(task_id: int, db: Session = Depends(get_db)):
+    log = (
+        db.query(models.ActionLog)
+        .filter(
+            models.ActionLog.task_id == task_id,
+            models.ActionLog.action_type == "task_complete",
+        )
+        .order_by(models.ActionLog.id.desc())
+        .first()
+    )
+    if not log:
+        raise HTTPException(status_code=404, detail="No complete action found to undo")
+    try:
+        prev = json.loads(log.previous_state)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Corrupted undo state")
+
+    tstate = prev.get("task")
+    if tstate:
+        task = db.query(models.Task).filter(models.Task.id == tstate["id"]).first()
+        if task:
+            task.remaining_duration = float(tstate["remaining_duration"])
+            task.completed = bool(tstate["completed"])
+            db.add(task)
+
+    snapshot = prev.get("schedule_snapshot")
+    if snapshot is not None:
+        db.query(models.ScheduleItem).delete()
+        for row in snapshot:
+            db.add(
+                models.ScheduleItem(
+                    id=row["id"],
+                    task_id=row["task_id"],
+                    date=datetime.fromisoformat(row["date"]).date(),
+                    duration=float(row["duration"]),
+                    completed_duration=float(row.get("completed_duration", 0.0)),
+                    status=row["status"],
+                    handled_at=(
+                        datetime.fromisoformat(row["handled_at"])
+                        if row.get("handled_at")
+                        else None
+                    ),
+                )
+            )
+
+    db.delete(log)
+    db.commit()
+    return get_plan(db)
+
+
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     # Cascade delete: schedule entries + logs that reference this task.
-    db.query(models.ScheduleItem).filter(models.ScheduleItem.task_id == task_id).delete()
+    db.query(models.ScheduleItem).filter(
+        models.ScheduleItem.task_id == task_id
+    ).delete()
     db.query(models.ActionLog).filter(models.ActionLog.task_id == task_id).delete()
     db.delete(db_task)
     db.commit()
@@ -204,16 +383,26 @@ def undo_schedule_item(item_id: int, db: Session = Depends(get_db)):
                     duration=float(row["duration"]),
                     completed_duration=float(row.get("completed_duration", 0.0)),
                     status=row["status"],
-                    handled_at=datetime.fromisoformat(row["handled_at"]) if row.get("handled_at") else None,
+                    handled_at=(
+                        datetime.fromisoformat(row["handled_at"])
+                        if row.get("handled_at")
+                        else None
+                    ),
                 )
             )
     elif prev.get("schedule_item"):
         s = prev["schedule_item"]
-        item = db.query(models.ScheduleItem).filter(models.ScheduleItem.id == s["id"]).first()
+        item = (
+            db.query(models.ScheduleItem)
+            .filter(models.ScheduleItem.id == s["id"])
+            .first()
+        )
         if item:
             item.status = s["status"]
             item.completed_duration = float(s.get("completed_duration", 0.0))
-            item.handled_at = datetime.fromisoformat(s["handled_at"]) if s.get("handled_at") else None
+            item.handled_at = (
+                datetime.fromisoformat(s["handled_at"]) if s.get("handled_at") else None
+            )
             db.add(item)
 
     db.delete(log)
@@ -221,13 +410,21 @@ def undo_schedule_item(item_id: int, db: Session = Depends(get_db)):
 
     engine_instance = SchedulingEngine(db)
     schedule, warnings = engine_instance.serialize_existing_plan()
-    explanation = cohere_service.explain_plan(sum(len(d["tasks"]) for d in schedule), warnings)
+    explanation = cohere_service.explain_plan(
+        sum(len(d["tasks"]) for d in schedule), warnings
+    )
     return {"schedule": schedule, "warnings": warnings, "explanation": explanation}
 
 
 @app.patch("/schedule-items/{item_id}", response_model=schemas.PlanResponse)
-def update_schedule_item(item_id: int, update: schemas.ScheduleItemStatusUpdate, db: Session = Depends(get_db)):
-    item = db.query(models.ScheduleItem).filter(models.ScheduleItem.id == item_id).first()
+def update_schedule_item(
+    item_id: int,
+    update: schemas.ScheduleItemStatusUpdate,
+    db: Session = Depends(get_db),
+):
+    item = (
+        db.query(models.ScheduleItem).filter(models.ScheduleItem.id == item_id).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Schedule item not found")
     if item.status != "pending":
@@ -239,22 +436,26 @@ def update_schedule_item(item_id: int, update: schemas.ScheduleItemStatusUpdate,
 
     assigned = float(item.duration)
     completed_hours = float(update.completed_hours)
-    if completed_hours < 0 or completed_hours - assigned > 1e-9:
-        raise HTTPException(status_code=400, detail="completed_hours must be between 0 and assigned duration")
+    if completed_hours < 0:
+        raise HTTPException(status_code=400, detail="completed_hours must be >= 0")
 
     # Snapshot for event-based undo
     schedule_snapshot = None
-    # For partial/missed we regenerate the schedule, so we capture a snapshot to restore.
-    will_reschedule = completed_hours < assigned
+    # We always regenerate the plan after logging progress, so keep a full snapshot for undo.
+    will_reschedule = True
     if will_reschedule:
-        rows = db.query(models.ScheduleItem).order_by(models.ScheduleItem.id.asc()).all()
+        rows = (
+            db.query(models.ScheduleItem).order_by(models.ScheduleItem.id.asc()).all()
+        )
         schedule_snapshot = [
             {
                 "id": r.id,
                 "task_id": r.task_id,
                 "date": r.date.isoformat(),
                 "duration": float(r.duration),
-                "completed_duration": float(getattr(r, "completed_duration", 0.0) or 0.0),
+                "completed_duration": float(
+                    getattr(r, "completed_duration", 0.0) or 0.0
+                ),
                 "status": r.status,
                 "handled_at": r.handled_at.isoformat() if r.handled_at else None,
             }
@@ -270,7 +471,9 @@ def update_schedule_item(item_id: int, update: schemas.ScheduleItemStatusUpdate,
         "schedule_item": {
             "id": item.id,
             "status": item.status,
-            "completed_duration": float(getattr(item, "completed_duration", 0.0) or 0.0),
+            "completed_duration": float(
+                getattr(item, "completed_duration", 0.0) or 0.0
+            ),
             "handled_at": item.handled_at.isoformat() if item.handled_at else None,
         },
     }
@@ -281,12 +484,11 @@ def update_schedule_item(item_id: int, update: schemas.ScheduleItemStatusUpdate,
     item.completed_duration = completed_hours
     if completed_hours <= 1e-9:
         item.status = "missed"
-    elif abs(completed_hours - assigned) <= 1e-9:
-        item.status = "completed"
-        task.remaining_duration = max(0.0, float(task.remaining_duration) - completed_hours)
     else:
-        item.status = "partial"
-        task.remaining_duration = max(0.0, float(task.remaining_duration) - completed_hours)
+        item.status = "completed"
+        task.remaining_duration = max(
+            0.0, float(task.remaining_duration) - completed_hours
+        )
 
     if task.remaining_duration <= 1e-9:
         task.remaining_duration = 0.0
@@ -308,21 +510,19 @@ def update_schedule_item(item_id: int, update: schemas.ScheduleItemStatusUpdate,
     )
     db.commit()
 
-    if item.status in {"missed", "partial"}:
-        return get_plan(db)
-
-    engine_instance = SchedulingEngine(db)
-    schedule, _ = engine_instance.serialize_existing_plan()
-    explanation = cohere_service.explain_plan(sum(len(d["tasks"]) for d in schedule), [])
-    return {"schedule": schedule, "warnings": [], "explanation": explanation}
+    return get_plan(db)
 
 
 @app.post("/availability", response_model=schemas.AvailabilitySlotOut)
-def create_availability(slot: schemas.AvailabilitySlotCreate, db: Session = Depends(get_db)):
+def create_availability(
+    slot: schemas.AvailabilitySlotCreate, db: Session = Depends(get_db)
+):
     payload = slot.model_dump()
     # Hard safety: blocked is removed, keep only available
     if payload.get("type") != "available":
-        raise HTTPException(status_code=400, detail="Only 'available' slots are supported")
+        raise HTTPException(
+            status_code=400, detail="Only 'available' slots are supported"
+        )
 
     hours = payload.pop("available_hours", None)
     start_time = payload.get("start_time")
@@ -330,8 +530,10 @@ def create_availability(slot: schemas.AvailabilitySlotCreate, db: Session = Depe
 
     if hours is not None:
         h = float(hours)
-        if h <= 0 or h > 24:
-            raise HTTPException(status_code=400, detail="available_hours must be between 0 and 24")
+        if h < 0 or h > 24:
+            raise HTTPException(
+                status_code=400, detail="available_hours must be between 0 and 24"
+            )
         # Store as 00:00 -> HH:MM window; we only need daily totals.
         total_minutes = int(round(h * 60))
         hh = total_minutes // 60
@@ -361,20 +563,26 @@ def list_availability(
     db: Session = Depends(get_db),
 ):
     # Only "available" is supported; keep legacy blocked rows out of the API response.
-    q = (
-        db.query(models.AvailabilitySlot)
-        .filter(models.AvailabilitySlot.user_id == 1, models.AvailabilitySlot.type == "available")
+    q = db.query(models.AvailabilitySlot).filter(
+        models.AvailabilitySlot.user_id == 1,
+        models.AvailabilitySlot.type == "available",
     )
     if start:
         q = q.filter(models.AvailabilitySlot.date >= start.date())
     if end:
         q = q.filter(models.AvailabilitySlot.date <= end.date())
-    return q.order_by(models.AvailabilitySlot.date.asc(), models.AvailabilitySlot.start_time.asc()).all()
+    return q.order_by(
+        models.AvailabilitySlot.date.asc(), models.AvailabilitySlot.start_time.asc()
+    ).all()
 
 
 @app.delete("/availability/{slot_id}")
 def delete_availability(slot_id: int, db: Session = Depends(get_db)):
-    slot = db.query(models.AvailabilitySlot).filter(models.AvailabilitySlot.id == slot_id).first()
+    slot = (
+        db.query(models.AvailabilitySlot)
+        .filter(models.AvailabilitySlot.id == slot_id)
+        .first()
+    )
     if not slot:
         raise HTTPException(status_code=404, detail="Availability slot not found")
     db.delete(slot)

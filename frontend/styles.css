@@ -187,6 +187,12 @@ button {
   width: fit-content;
 }
 
+.calAvail.overwork {
+  color: #b42318;
+  background: #fef3f2;
+  border-color: #fecdca;
+}
+
 .calChunk {
   display: flex;
   flex-direction: column;
@@ -230,11 +236,6 @@ button {
   color: #166534;
 }
 
-.badge.partial {
-  background: #e0f2fe;
-  color: #075985;
-}
-
 .badge.missed {
   background: #fee2e2;
   color: #991b1b;
@@ -274,8 +275,34 @@ button {
 }
 
 .warning {
+  font-weight: 700;
+}
+
+.warning.red {
   color: #b42318;
-  font-weight: bold;
+}
+
+.warning.yellow {
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.warning.red {
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.warning.transient {
+  transition: opacity 0.35s ease;
+}
+
+.warning.hiddenWarning {
+  opacity: 0;
 }
 
 .empty {

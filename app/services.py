@@ -22,7 +22,9 @@ class CohereService:
                     "Explain a student plan briefly in 1-2 sentences. "
                     f"Task count: {tasks_count}. Warnings: {warnings}."
                 )
-                response = self.client.generate(model="command", prompt=prompt, max_tokens=80)
+                response = self.client.generate(
+                    model="command", prompt=prompt, max_tokens=80
+                )
                 return response.generations[0].text.strip()
             except Exception:
                 pass
@@ -48,12 +50,16 @@ class SchedulingEngine:
 
         tasks = (
             self.db.query(models.Task)
-            .filter(models.Task.completed.is_(False), models.Task.remaining_duration > 0)
+            .filter(
+                models.Task.completed.is_(False), models.Task.remaining_duration > 0
+            )
             .order_by(models.Task.deadline.asc(), models.Task.difficulty.desc())
             .all()
         )
 
-        self.db.query(models.ScheduleItem).filter(models.ScheduleItem.status == "pending").delete()
+        self.db.query(models.ScheduleItem).filter(
+            models.ScheduleItem.status == "pending"
+        ).delete()
         self.db.commit()
 
         warnings: list[str] = []
@@ -111,7 +117,9 @@ class SchedulingEngine:
                     continue
 
                 self.db.add(
-                    models.ScheduleItem(task_id=task.id, date=day, duration=chunk, status="pending")
+                    models.ScheduleItem(
+                        task_id=task.id, date=day, duration=chunk, status="pending"
+                    )
                 )
                 remaining_by_date[day] -= chunk
                 hours_left -= chunk
@@ -135,7 +143,9 @@ class SchedulingEngine:
         schedule = self._serialize_schedule(range_start, range_end)
         return schedule, []
 
-    def _serialize_schedule(self, range_start: date, range_end: date) -> list[dict[str, Any]]:
+    def _serialize_schedule(
+        self, range_start: date, range_end: date
+    ) -> list[dict[str, Any]]:
         # Cleanup: remove schedule rows that reference deleted tasks (historical/orphan rows).
         # This prevents showing "Task #123" entries for tasks that no longer exist.
         orphan_q = self.db.query(models.ScheduleItem).filter(
@@ -157,7 +167,9 @@ class SchedulingEngine:
         task_ids = {row.task_id for row in rows}
         task_map: dict[int, models.Task] = {}
         if task_ids:
-            for t in self.db.query(models.Task).filter(models.Task.id.in_(task_ids)).all():
+            for t in (
+                self.db.query(models.Task).filter(models.Task.id.in_(task_ids)).all()
+            ):
                 task_map[t.id] = t
 
         grouped: dict[date, list[dict[str, Any]]] = defaultdict(list)
@@ -169,13 +181,18 @@ class SchedulingEngine:
                     "id": row.id,
                     "task": title,
                     "assigned_duration": row.duration,
-                    "completed_duration": float(getattr(row, "completed_duration", 0.0) or 0.0),
+                    "completed_duration": float(
+                        getattr(row, "completed_duration", 0.0) or 0.0
+                    ),
                     "task_id": row.task_id,
                     "status": row.status,
                 }
             )
 
-        return [{"date": day, "tasks": day_tasks} for day, day_tasks in sorted(grouped.items(), key=lambda x: x[0])]
+        return [
+            {"date": day, "tasks": day_tasks}
+            for day, day_tasks in sorted(grouped.items(), key=lambda x: x[0])
+        ]
 
     def adapt_from_progress(self) -> None:
         return
@@ -202,35 +219,51 @@ class SchedulingEngine:
 
         slots = (
             self.db.query(models.AvailabilitySlot)
-            .filter(models.AvailabilitySlot.user_id == 1, models.AvailabilitySlot.date == day)
+            .filter(
+                models.AvailabilitySlot.user_id == 1,
+                models.AvailabilitySlot.date == day,
+            )
             .all()
         )
         if not slots:
-            return max(0.0, min(base_fallback, max_cap))
-
-        def parse_hhmm(s: str) -> float:
-            hh, mm = s.split(":")
-            return int(hh) + int(mm) / 60.0
-
-        available_hours = 0.0
-        has_explicit_available = any(getattr(s, "type", None) == "available" for s in slots)
-
-        for s in slots:
-            try:
-                start = parse_hhmm(s.start_time)
-                end = parse_hhmm(s.end_time)
-            except Exception:
-                continue
-            if end <= start:
-                continue
-            dur = max(0.0, min(end, 24.0) - max(start, 0.0))
-            if getattr(s, "type", None) == "available":
-                available_hours += dur
-
-        if has_explicit_available:
-            raw = max(0.0, available_hours)
-        else:
-            # No entered availability → use the default.
             raw = base_fallback
+        else:
+            def parse_hhmm(s: str) -> float:
+                hh, mm = s.split(":")
+                return int(hh) + int(mm) / 60.0
 
-        return max(0.0, min(raw, max_cap))
+            available_hours = 0.0
+            has_explicit_available = any(
+                getattr(s, "type", None) == "available" for s in slots
+            )
+
+            for s in slots:
+                try:
+                    start = parse_hhmm(s.start_time)
+                    end = parse_hhmm(s.end_time)
+                except Exception:
+                    continue
+                if end <= start:
+                    continue
+                dur = max(0.0, min(end, 24.0) - max(start, 0.0))
+                if getattr(s, "type", None) == "available":
+                    available_hours += dur
+
+            if has_explicit_available:
+                raw = max(0.0, available_hours)
+            else:
+                # No entered availability → use the default.
+                raw = base_fallback
+
+        completed_hours = (
+            self.db.query(models.ScheduleItem)
+            .filter(
+                models.ScheduleItem.date == day,
+                models.ScheduleItem.status == "completed",
+            )
+            .with_entities(models.ScheduleItem.completed_duration)
+            .all()
+        )
+        consumed = sum(float(h[0] or 0.0) for h in completed_hours)
+        remaining = max(0.0, raw - consumed)
+        return max(0.0, min(remaining, max_cap))
