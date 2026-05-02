@@ -51,6 +51,7 @@ class ScheduleTask(BaseModel):
     completed_duration: float
     task_id: int
     status: str
+    undoable: bool = False
 
 
 class ScheduleDay(BaseModel):

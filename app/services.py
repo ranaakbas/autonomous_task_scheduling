@@ -171,6 +171,16 @@ class SchedulingEngine:
                 self.db.query(models.Task).filter(models.Task.id.in_(task_ids)).all()
             ):
                 task_map[t.id] = t
+        row_ids = [row.id for row in rows]
+        undoable_ids: set[int] = set()
+        if row_ids:
+            undoable_ids = {
+                sid
+                for (sid,) in self.db.query(models.ActionLog.schedule_id)
+                .filter(models.ActionLog.schedule_id.in_(row_ids))
+                .all()
+                if sid is not None
+            }
 
         grouped: dict[date, list[dict[str, Any]]] = defaultdict(list)
         for row in rows:
@@ -186,6 +196,7 @@ class SchedulingEngine:
                     ),
                     "task_id": row.task_id,
                     "status": row.status,
+                    "undoable": row.id in undoable_ids,
                 }
             )
 

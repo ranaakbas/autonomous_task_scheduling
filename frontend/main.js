@@ -329,18 +329,6 @@ function renderCalendar() {
           if (payload) applyPlanPayload(payload);
         };
         actions.appendChild(complete);
-      } else {
-        const undo = document.createElement("button");
-        undo.type = "button";
-        undo.textContent = "Undo";
-        undo.className = "ghost tiny";
-        undo.onclick = async () => {
-          const res = await fetch(`/schedule-items/${t.id}/undo`, {
-            method: "POST",
-          });
-          applyPlanPayload(await res.json());
-        };
-        actions.appendChild(undo);
       }
 
       row.appendChild(left);
@@ -376,13 +364,14 @@ async function fetchTasksForModal() {
     const actions = document.createElement("div");
     actions.className = "rowActions";
 
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.textContent = "Edit";
-    editBtn.className = "ghost";
-    editBtn.onclick = () => openEditModal(task);
-
-    actions.appendChild(editBtn);
+    if (!task.completed) {
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.textContent = "Edit";
+      editBtn.className = "ghost";
+      editBtn.onclick = () => openEditModal(task);
+      actions.appendChild(editBtn);
+    }
 
     if (!task.completed) {
       const doneBtn = document.createElement("button");
@@ -390,27 +379,26 @@ async function fetchTasksForModal() {
       doneBtn.textContent = "Complete Task";
       doneBtn.className = "success";
       doneBtn.onclick = async () => {
-        const prevRemaining = task.remaining_duration;
         await fetch(`/tasks/${task.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ completed: true }),
         });
         setModal(false, "tasks");
-        showToast("Task completed.", async () => {
-          await fetch(`/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              completed: false,
-              remaining_duration: prevRemaining,
-            }),
-          });
-          await refreshPlanAndTasksStrip();
-        });
         await refreshPlanAndTasksStrip();
       };
       actions.appendChild(doneBtn);
+    } else {
+      const undoBtn = document.createElement("button");
+      undoBtn.type = "button";
+      undoBtn.textContent = "Undo Complete";
+      undoBtn.className = "ghost";
+      undoBtn.onclick = async () => {
+        setModal(false, "tasks");
+        await fetch(`/tasks/${task.id}/undo-complete`, { method: "POST" });
+        await refreshPlanAndTasksStrip();
+      };
+      actions.appendChild(undoBtn);
     }
 
     const delBtn = document.createElement("button");
