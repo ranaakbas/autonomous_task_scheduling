@@ -609,7 +609,8 @@ function renderCalendar() {
       }
 
       const canUndoFromStatus =
-        t.status === "completed" || t.status === "missed";
+        (t.status === "completed" || t.status === "missed") &&
+        (Boolean(t.undoable) || pendingUndoByChunkId.has(t.id));
       if (canUndoFromStatus) {
         const undoFn = pendingUndoByChunkId.get(t.id);
         const undoBtn = document.createElement("button");
@@ -683,6 +684,12 @@ async function fetchTasksForModal() {
       doneBtn.textContent = "Complete Task";
       doneBtn.className = "success";
       doneBtn.onclick = async () => {
+        // Task-level completion should not expose chunk-level undo for this task.
+        for (const dayTasks of lastPlanByDate.values()) {
+          for (const chunk of dayTasks || []) {
+            if (chunk.task_id === task.id) pendingUndoByChunkId.delete(chunk.id);
+          }
+        }
         await fetch(`/tasks/${task.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
