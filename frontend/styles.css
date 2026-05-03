@@ -1211,3 +1211,204 @@ input::placeholder { color:var(--text-dim); }
     min-height:0;
   }
 }
+
+/* ══════════════════════════════════════════
+   COMPLETE CHUNK MODAL (time input)
+══════════════════════════════════════════ */
+.completeModalBackdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(6px);
+  z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: cmFadeIn .18s ease both;
+}
+[data-theme="parchment"] .completeModalBackdrop,
+[data-theme="rose"]      .completeModalBackdrop,
+[data-theme="sky"]       .completeModalBackdrop,
+[data-theme="sage"]      .completeModalBackdrop { background: rgba(0,0,0,0.35); }
+
+@keyframes cmFadeIn { from { opacity:0; } to { opacity:1; } }
+
+.completeModalPanel {
+  width: min(420px, 100%);
+  background: var(--panel);
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
+  animation: modalIn .22s cubic-bezier(.34,1.56,.64,1) both;
+  position: relative; overflow: hidden;
+}
+.completeModalPanel::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:var(--card-edge); opacity:0.5;
+}
+[data-theme="parchment"] .completeModalPanel { background:rgba(250,248,244,.97); backdrop-filter:blur(24px); }
+[data-theme="rose"]      .completeModalPanel { background:rgba(255,248,250,.97); backdrop-filter:blur(24px); }
+[data-theme="sky"]       .completeModalPanel { background:rgba(245,250,253,.97); backdrop-filter:blur(24px); }
+[data-theme="sage"]      .completeModalPanel { background:rgba(247,250,246,.97); backdrop-filter:blur(24px); }
+
+.cmHeader {
+  padding: 22px 24px 0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.cmHeaderLeft { flex:1; min-width:0; }
+.cmEyebrow {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: var(--accent-dim); letter-spacing: .15em; text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.cmTitle {
+  font-family: var(--font-display); font-size: 1.2rem; font-weight: 700;
+  color: var(--text); line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cmCloseBtn {
+  background: transparent; border: none;
+  font-size: 18px; line-height: 1;
+  color: var(--text-muted); padding: 4px 6px; border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  flex-shrink: 0; cursor: pointer; margin-top: 2px;
+}
+.cmCloseBtn:hover { color: var(--danger); background: var(--danger-pale); }
+
+.cmMeta {
+  padding: 10px 24px 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.cmAssignedBadge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--accent2-pale); border: 1px solid rgba(200,150,50,0.2);
+  border-radius: var(--radius-sm); padding: 4px 10px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--accent2);
+}
+.cmAssignedBadge svg { opacity: 0.8; }
+
+.cmBody { padding: 18px 24px; }
+
+/* Quick-pick option buttons */
+.cmQuickLabel {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: var(--text-muted); letter-spacing: .12em; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.cmQuickGrid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  margin-bottom: 18px;
+}
+.cmQuickBtn {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 8px 4px;
+  background: var(--surface); border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: all .15s ease;
+  font-family: var(--font-mono);
+}
+.cmQuickBtn:hover {
+  border-color: var(--accent-dim); background: var(--accent-pale); color: var(--accent);
+}
+.cmQuickBtn.cm-selected {
+  border-color: var(--accent); background: var(--accent-pale); color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-pale);
+}
+.cmQuickBtn.cm-zero {
+  border-color: var(--danger-pale);
+}
+.cmQuickBtn.cm-zero:hover,
+.cmQuickBtn.cm-zero.cm-selected {
+  border-color: var(--danger); background: var(--danger-pale); color: var(--danger);
+}
+.cmQuickBtn.cm-full:hover,
+.cmQuickBtn.cm-full.cm-selected {
+  border-color: var(--accent); background: var(--accent-pale); color: var(--accent);
+}
+[data-theme="parchment"] .cmQuickBtn,
+[data-theme="rose"]      .cmQuickBtn,
+[data-theme="sky"]       .cmQuickBtn,
+[data-theme="sage"]      .cmQuickBtn { background: #fff; }
+[data-theme="parchment"] .cmQuickBtn.cm-selected,
+[data-theme="rose"]      .cmQuickBtn.cm-selected,
+[data-theme="sky"]       .cmQuickBtn.cm-selected,
+[data-theme="sage"]      .cmQuickBtn.cm-selected { color: var(--accent); }
+.cmQuickPct {
+  font-size: 15px; font-weight: 700; color: var(--text);
+}
+.cmQuickHrs {
+  font-size: 9px; color: var(--text-muted); white-space: nowrap;
+}
+.cmQuickBtn:hover .cmQuickPct,
+.cmQuickBtn.cm-selected .cmQuickPct { color: inherit; }
+.cmQuickBtn:hover .cmQuickHrs,
+.cmQuickBtn.cm-selected .cmQuickHrs { color: inherit; opacity: 0.75; }
+
+/* Number input row */
+.cmInputLabel {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: var(--text-muted); letter-spacing: .12em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.cmInputRow {
+  display: flex; gap: 8px; align-items: stretch;
+}
+.cmInputWrap {
+  position: relative; flex: 1; display: flex; align-items: center;
+}
+.cmNumberInput {
+  font-family: var(--font-mono); font-size: 18px; font-weight: 700;
+  color: var(--text); background: var(--surface);
+  border: 1.5px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 40px 10px 14px;
+  width: 100%; outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+  -moz-appearance: textfield;
+}
+.cmNumberInput::-webkit-inner-spin-button,
+.cmNumberInput::-webkit-outer-spin-button { -webkit-appearance: none; }
+.cmNumberInput:focus {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px var(--accent-pale);
+}
+[data-theme="parchment"] .cmNumberInput,
+[data-theme="rose"]      .cmNumberInput,
+[data-theme="sky"]       .cmNumberInput,
+[data-theme="sage"]      .cmNumberInput { background: #fff; border-width: 1.5px; border-color: var(--border-strong); }
+.cmInputUnit {
+  position: absolute; right: 12px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-muted); pointer-events: none;
+}
+
+/* Footer buttons */
+.cmFooter {
+  padding: 0 24px 22px;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.cmCancelBtn {
+  background: transparent; border: 1px solid var(--panel-border);
+  color: var(--text-muted); border-radius: var(--radius-sm);
+  padding: 9px 16px; cursor: pointer; font-family: var(--font-body);
+  font-size: 13px; transition: all .15s ease;
+}
+.cmCancelBtn:hover { border-color: var(--border-strong); color: var(--text); }
+.cmConfirmBtn {
+  background: var(--accent); border: 1px solid transparent;
+  color: var(--bg); border-radius: var(--radius-sm);
+  padding: 9px 20px; cursor: pointer; font-family: var(--font-body);
+  font-size: 13px; font-weight: 700; transition: all .15s ease;
+  display: flex; align-items: center; gap: 6px;
+}
+.cmConfirmBtn:hover { background: var(--accent-dim); box-shadow: 0 0 0 3px var(--accent-pale); }
+[data-theme="parchment"] .cmConfirmBtn,
+[data-theme="rose"]      .cmConfirmBtn,
+[data-theme="sky"]       .cmConfirmBtn,
+[data-theme="sage"]      .cmConfirmBtn { color: #fff; }
+
+/* Responsive */
+@media (max-width: 480px) {
+  .cmQuickGrid { grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .cmHeader, .cmBody, .cmFooter, .cmMeta { padding-left: 18px; padding-right: 18px; }
+  .cmTitle { font-size: 1.05rem; }
+  .cmNumberInput { font-size: 16px; }
+}

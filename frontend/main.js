@@ -210,21 +210,140 @@ function effectiveAvailabilityForISO(iso) {
   return Math.max(0, base - consumed);
 }
 
+function showCompleteModal(chunk) {
+  return new Promise((resolve) => {
+    const assigned = Number(chunk.assigned_duration);
+    const opts = [
+      { pct: "0%", label: "Missed", value: 0, cls: "cm-zero" },
+      { pct: "50%", label: "", value: assigned * 0.5, cls: "" },
+      { pct: "100%", label: "Done", value: assigned, cls: "cm-full" },
+    ];
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "completeModalBackdrop";
+    backdrop.innerHTML = `
+      <div class="completeModalPanel" role="dialog" aria-modal="true" aria-label="Complete block">
+        <div class="cmHeader">
+          <div class="cmHeaderLeft">
+            <div class="cmEyebrow">Mark as complete</div>
+            <div class="cmTitle">${chunk.task}</div>
+          </div>
+          <button type="button" class="cmCloseBtn" aria-label="Cancel">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="cmMeta">
+          <span class="cmAssignedBadge">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+            </svg>
+            Assigned: ${formatHours(assigned)}h
+          </span>
+        </div>
+        <div class="cmBody">
+          <div class="cmQuickLabel">Quick select</div>
+          <div class="cmQuickGrid">
+            ${opts
+              .map(
+                (o, i) => `
+              <button type="button" class="cmQuickBtn ${o.cls}" data-idx="${i}" data-val="${o.value}">
+                <span class="cmQuickPct">${o.pct}</span>
+                <span class="cmQuickHrs">${o.label || formatHours(o.value) + "h"}</span>
+              </button>
+            `,
+              )
+              .join("")}
+          </div>
+          <div class="cmInputLabel">Or enter hours manually</div>
+          <div class="cmInputRow">
+            <div class="cmInputWrap">
+              <input type="number" class="cmNumberInput" min="0" max="${assigned}" step="0.25"
+                value="${formatHours(assigned)}" inputmode="decimal" autocomplete="off">
+              <span class="cmInputUnit">h</span>
+            </div>
+          </div>
+        </div>
+        <div class="cmFooter">
+          <button type="button" class="cmCancelBtn">Cancel</button>
+          <button type="button" class="cmConfirmBtn">
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
+              <path d="M6.5 10.5l2.5 2.5L14 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Confirm
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    const numberInput = backdrop.querySelector(".cmNumberInput");
+    const quickBtns = backdrop.querySelectorAll(".cmQuickBtn");
+    const confirmBtn = backdrop.querySelector(".cmConfirmBtn");
+    const cancelBtn = backdrop.querySelector(".cmCancelBtn");
+    const closeBtn = backdrop.querySelector(".cmCloseBtn");
+
+    // Sync quick buttons with input value
+    function syncQuickBtns(val) {
+      quickBtns.forEach((btn) => {
+        const bVal = Number(btn.dataset.val);
+        btn.classList.toggle("cm-selected", Math.abs(bVal - val) < 1e-9);
+      });
+    }
+    syncQuickBtns(assigned);
+
+    quickBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const v = Number(btn.dataset.val);
+        numberInput.value = formatHours(v);
+        syncQuickBtns(v);
+        numberInput.focus();
+      });
+    });
+
+    numberInput.addEventListener("input", () => {
+      syncQuickBtns(Number(numberInput.value));
+    });
+
+    function close(result) {
+      backdrop.style.opacity = "0";
+      backdrop.style.transition = "opacity .15s ease";
+      setTimeout(() => backdrop.remove(), 160);
+      resolve(result);
+    }
+
+    confirmBtn.addEventListener("click", () => close(numberInput.value));
+    cancelBtn.addEventListener("click", () => close(null));
+    closeBtn.addEventListener("click", () => close(null));
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close(null);
+    });
+    document.addEventListener("keydown", function onKey(e) {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", onKey);
+        close(null);
+      }
+      if (e.key === "Enter") {
+        document.removeEventListener("keydown", onKey);
+        close(numberInput.value);
+      }
+    });
+
+    // Focus input
+    requestAnimationFrame(() => {
+      numberInput.focus();
+      numberInput.select();
+    });
+  });
+}
+
 async function completeChunkWithPrompt(chunk) {
   const assigned = Number(chunk.assigned_duration);
-  const opts = [
-    { label: "0% (Missed)", value: 0 },
-    { label: "25%", value: assigned * 0.25 },
-    { label: "50%", value: assigned * 0.5 },
-    { label: "75%", value: assigned * 0.75 },
-    { label: "100% (Completed)", value: assigned },
-  ];
-  const msg =
-    `How many hours did you complete for this block?\n` +
-    `Assigned: ${formatHours(assigned)}h\n\n` +
-    opts.map((o) => `- ${o.label}: ${formatHours(o.value)}h`).join("\n") +
-    `\n\nEnter hours (e.g. 1.5) or leave empty (cancel):`;
-  const raw = prompt(msg, `${formatHours(assigned)}`);
+
+  const raw = await showCompleteModal(chunk);
   if (raw === null) return null;
   const val = Number(raw);
   if (!Number.isFinite(val) || val < 0 || val > assigned + 1e-9) {
