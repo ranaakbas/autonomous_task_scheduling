@@ -37,6 +37,7 @@ let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth();
 let lastPlanByDate = new Map();
 let completeUndoTimer = null;
+const pendingUndoByChunkId = new Map(); // chunkId -> undoFn, for calendar-level undo
 let availabilityHoursByDate = new Map(); // isoDate -> hours (sum of available slots)
 let defaultDailyCapacity = 4; // from profile.daily_capacity
 
@@ -91,7 +92,10 @@ function showToast(message, onUndo, ms = 8000) {
   }
   toast.classList.remove("hidden");
   clearTimeout(completeUndoTimer);
-  completeUndoTimer = setTimeout(hideToast, ms);
+  /* ms=0 means no auto-dismiss (indefinite, user must manually close) */
+  if (ms > 0) {
+    completeUndoTimer = setTimeout(hideToast, ms);
+  }
 }
 
 function hideToast() {
@@ -232,7 +236,21 @@ async function completeChunkWithPrompt(chunk) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ completed_hours: val }),
   });
-  return res.json();
+  const payload = await res.json();
+
+  /* Store undo callback in map — renderCalendar will inject the button into the chunk */
+  const chunkId = chunk.id;
+  pendingUndoByChunkId.set(chunkId, async function () {
+    pendingUndoByChunkId.delete(chunkId);
+    await fetch("/schedule-items/" + chunkId + "/undo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    await refreshPlanAndTasksStrip();
+  });
+
+  return payload;
 }
 
 function renderCalendar() {
@@ -329,6 +347,16 @@ function renderCalendar() {
           if (payload) applyPlanPayload(payload);
         };
         actions.appendChild(complete);
+      }
+
+      if (t.status === "completed" && pendingUndoByChunkId.has(t.id)) {
+        const undoFn = pendingUndoByChunkId.get(t.id);
+        const undoBtn = document.createElement("button");
+        undoBtn.type = "button";
+        undoBtn.textContent = "Undo";
+        undoBtn.className = "calChunkUndo";
+        undoBtn.onclick = () => undoFn();
+        actions.appendChild(undoBtn);
       }
 
       row.appendChild(left);
@@ -592,6 +620,7 @@ editForm.addEventListener("submit", async (e) => {
 
 taskForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  setModal(false, "create");
   try {
     const formData = new FormData(taskForm);
     const payload = Object.fromEntries(formData.entries());
@@ -603,7 +632,6 @@ taskForm.addEventListener("submit", async (e) => {
       body: JSON.stringify(payload),
     });
     taskForm.reset();
-    setModal(false, "create");
     await refreshPlanAndTasksStrip();
     showToast("Task created.");
   } catch (err) {

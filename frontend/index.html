@@ -3,25 +3,186 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Autonomous Student Scheduler</title>
+    <title>Study Planner — Autonomous Scheduler</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <!-- Ambient background -->
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient-blob blob-1"></div>
+      <div class="ambient-blob blob-2"></div>
+      <div class="ambient-blob blob-3"></div>
+      <div class="grid-overlay"></div>
+    </div>
+
     <main class="container">
       <header class="topBar">
         <div class="hero">
-          <h1>Study Planner Agent</h1>
+          <div class="hero-eyebrow">
+            <span class="hero-dot"></span>
+            <span>Autonomous Agent</span>
+          </div>
+          <h1>Study <em>Planner</em></h1>
+          <p class="hero-sub">AI-powered scheduling for focused students</p>
         </div>
-        <div class="headerActions">
+        <nav class="headerActions">
+          <button
+            type="button"
+            id="themeToggleBtn"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+          >
+            Theme: Terminal
+          </button>
           <button type="button" id="openAvailabilityBtn" class="ghost">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <polyline points="12 7 12 12 15 14" />
+            </svg>
             Availability
           </button>
-          <button type="button" id="openTasksBtn" class="ghost">Tasks</button>
+          <button type="button" id="openTasksBtn" class="ghost">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path
+                d="M2 3h11M2 7.5h11M2 12h11"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+            </svg>
+            All Tasks
+          </button>
           <button type="button" id="openCreateBtn" class="primary">
-            Create Task
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M7 1v12M1 7h12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+            New Task
+          </button>
+        </nav>
+      </header>
+
+      <!-- Alert banners: rendered here by JS -->
+      <div
+        id="alertRegion"
+        class="alertRegion"
+        aria-live="polite"
+        aria-atomic="false"
+      ></div>
+
+      <div
+        id="themePicker"
+        class="themePicker hidden"
+        role="dialog"
+        aria-label="Theme picker"
+      >
+        <div class="themePickerHead">
+          <div class="themePickerTitle">Select theme</div>
+          <button
+            type="button"
+            class="themePickerClose"
+            id="themePickerCloseBtn"
+            aria-label="Close theme picker"
+          >
+            x
           </button>
         </div>
-      </header>
+        <div class="themeGrid" id="themeGrid">
+          <button type="button" class="themeCard" data-t="terminal">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #00e5a0"></span>
+              <span class="themeCardDot" style="background: #4d9eff"></span>
+              <span class="themeCardDot" style="background: #f5a623"></span>
+            </span>
+            <span class="themeCardName">Terminal</span>
+            <span class="themeCardDesc">Dark neon</span>
+          </button>
+          <button type="button" class="themeCard" data-t="parchment">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #c9a84c"></span>
+              <span class="themeCardDot" style="background: #2a7a6f"></span>
+              <span class="themeCardDot" style="background: #c0444a"></span>
+            </span>
+            <span class="themeCardName">Parchment</span>
+            <span class="themeCardDesc">Warm editorial</span>
+          </button>
+          <button type="button" class="themeCard" data-t="midnight">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #6c8fff"></span>
+              <span class="themeCardDot" style="background: #ff6eb4"></span>
+              <span class="themeCardDot" style="background: #80cbc4"></span>
+            </span>
+            <span class="themeCardName">Midnight</span>
+            <span class="themeCardDesc">Electric navy</span>
+          </button>
+          <button type="button" class="themeCard" data-t="forest">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #6fcf7a"></span>
+              <span class="themeCardDot" style="background: #e8b84b"></span>
+              <span class="themeCardDot" style="background: #56b6c2"></span>
+            </span>
+            <span class="themeCardName">Forest</span>
+            <span class="themeCardDesc">Earthy dark</span>
+          </button>
+          <button type="button" class="themeCard" data-t="rose">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #d4507a"></span>
+              <span class="themeCardDot" style="background: #7b5ea7"></span>
+              <span class="themeCardDot" style="background: #4a90d9"></span>
+            </span>
+            <span class="themeCardName">Rose</span>
+            <span class="themeCardDesc">Elegant light</span>
+          </button>
+          <button type="button" class="themeCard" data-t="obsidian">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #e8e8e8"></span>
+              <span class="themeCardDot" style="background: #f0c040"></span>
+              <span class="themeCardDot" style="background: #60a0e0"></span>
+            </span>
+            <span class="themeCardName">Obsidian</span>
+            <span class="themeCardDesc">Monochrome stark</span>
+          </button>
+          <button type="button" class="themeCard" data-t="sky">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #2196c9"></span>
+              <span class="themeCardDot" style="background: #6e52d6"></span>
+              <span class="themeCardDot" style="background: #e07b2a"></span>
+            </span>
+            <span class="themeCardName">Sky</span>
+            <span class="themeCardDesc">Airy cerulean</span>
+          </button>
+          <button type="button" class="themeCard" data-t="sage">
+            <span class="themeCardCheck">✓</span>
+            <span class="themeCardDots">
+              <span class="themeCardDot" style="background: #4a9960"></span>
+              <span class="themeCardDot" style="background: #c0783a"></span>
+              <span class="themeCardDot" style="background: #4070b8"></span>
+            </span>
+            <span class="themeCardName">Sage</span>
+            <span class="themeCardDesc">Soft mint & olive</span>
+          </button>
+        </div>
+      </div>
 
       <section class="card scheduleCard">
         <div class="scheduleHead">
@@ -30,24 +191,56 @@
             <button
               type="button"
               id="prevMonthBtn"
-              class="ghost"
+              class="navArrow"
               aria-label="Previous month"
             >
-              ←
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M10 12L6 8l4-4"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </button>
-            <span id="monthLabel"></span>
+            <span id="monthLabel" class="monthLabelText"></span>
             <button
               type="button"
               id="nextMonthBtn"
-              class="ghost"
+              class="navArrow"
               aria-label="Next month"
             >
-              →
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M6 4l4 4-4 4"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </button>
           </div>
-          <button id="rescheduleBtn" class="primary small">Reschedule</button>
+          <button id="rescheduleBtn" class="rescheduleBtn">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74" />
+              <polyline points="3 3 3 9 9 9" />
+            </svg>
+            Reschedule
+          </button>
         </div>
-        <div id="warnings"></div>
+        <!-- main.js injects <p class="warning"> here; intercepted + hidden below -->
+        <div id="warnings" class="warningsSink"></div>
         <pre id="explanation" class="explanation"></pre>
         <div id="calendarGrid" class="calendarGrid"></div>
       </section>
@@ -59,6 +252,7 @@
       aria-hidden="true"
     ></div>
 
+    <!-- Create Task Modal -->
     <div
       id="createModal"
       class="modal hidden"
@@ -68,42 +262,84 @@
     >
       <div class="modalPanel">
         <div class="modalHead">
-          <h2 id="createTitle">Create Task</h2>
+          <div>
+            <div class="modal-eyebrow">New entry</div>
+            <h2 id="createTitle">Create Task</h2>
+          </div>
           <button
             type="button"
             class="iconBtn"
             id="closeCreateBtn"
             aria-label="Close"
           >
-            ×
+            x
           </button>
         </div>
         <form id="taskForm" class="modalForm">
-          <label
-            >Title<input name="title" placeholder="Task title" required
-          /></label>
-          <label>Deadline<input name="deadline" type="date" required /></label>
-          <label
-            >Hours<input
-              name="total_duration"
-              type="number"
-              min="0.25"
-              step="0.25"
+          <div class="field">
+            <label for="cf-title">Task title</label>
+            <input
+              id="cf-title"
+              name="title"
+              placeholder="e.g. Chapter 5 reading"
               required
-          /></label>
-          <label
-            >Difficulty (1–5)<input
-              name="difficulty"
-              type="number"
-              min="1"
-              max="5"
-              required
-          /></label>
-          <button type="submit" class="primary">Save</button>
+            />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="cf-deadline">Deadline</label>
+              <input id="cf-deadline" name="deadline" type="date" required />
+            </div>
+            <div class="field">
+              <label for="cf-hours">Total hours</label>
+              <input
+                id="cf-hours"
+                name="total_duration"
+                type="number"
+                min="0.25"
+                step="0.25"
+                placeholder="4"
+                required
+              />
+            </div>
+          </div>
+          <div class="field">
+            <label
+              >Difficulty <span class="muted">(1 easy - 5 hard)</span></label
+            >
+            <div class="difficultyPicker" id="difficultyPicker">
+              <input
+                type="hidden"
+                name="difficulty"
+                id="difficultyValue"
+                value="3"
+                required
+              />
+              <button type="button" class="diffBtn" data-val="1">1</button>
+              <button type="button" class="diffBtn" data-val="2">2</button>
+              <button type="button" class="diffBtn active" data-val="3">
+                3
+              </button>
+              <button type="button" class="diffBtn" data-val="4">4</button>
+              <button type="button" class="diffBtn" data-val="5">5</button>
+            </div>
+          </div>
+          <button type="submit" class="primary fullWidth">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M7 1v12M1 7h12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+            Add to schedule
+          </button>
         </form>
       </div>
     </div>
 
+    <!-- Tasks Modal -->
     <div
       id="tasksModal"
       class="modal hidden"
@@ -113,20 +349,24 @@
     >
       <div class="modalPanel wide">
         <div class="modalHead">
-          <h2 id="tasksTitle">All tasks</h2>
+          <div>
+            <div class="modal-eyebrow">Your tasks</div>
+            <h2 id="tasksTitle">All Tasks</h2>
+          </div>
           <button
             type="button"
             class="iconBtn"
             id="closeTasksBtn"
             aria-label="Close"
           >
-            ×
+            x
           </button>
         </div>
         <div id="taskList" class="taskList"></div>
       </div>
     </div>
 
+    <!-- Availability Modal -->
     <div
       id="availabilityModal"
       class="modal hidden"
@@ -136,62 +376,72 @@
     >
       <div class="modalPanel wide">
         <div class="modalHead">
-          <h2 id="availabilityTitle">Availability</h2>
+          <div>
+            <div class="modal-eyebrow">Time windows</div>
+            <h2 id="availabilityTitle">Availability</h2>
+          </div>
           <button
             type="button"
             class="iconBtn"
             id="closeAvailabilityBtn"
             aria-label="Close"
           >
-            ×
+            x
           </button>
         </div>
         <div class="availabilityDefaults">
           <div class="availabilityDefaultsRow">
             <div>
-              <div class="availabilityDefaultsTitle">
-                Default daily availability
-              </div>
-              <div class="muted">
-                Used when you don’t set a specific day’s availability.
-              </div>
+              <div class="availabilityDefaultsTitle">Daily default</div>
+              <div class="muted">Fallback when no specific slot is set.</div>
             </div>
             <form id="defaultAvailabilityForm" class="availabilityDefaultsForm">
-              <input
-                name="daily_capacity"
-                id="defaultDailyCapacityInput"
-                type="number"
-                min="0"
-                max="24"
-                step="0.25"
-                required
-              />
-              <button type="submit" class="ghost">Set default</button>
+              <div class="inputWithUnit">
+                <input
+                  name="daily_capacity"
+                  id="defaultDailyCapacityInput"
+                  type="number"
+                  min="0"
+                  max="24"
+                  step="0.25"
+                  required
+                />
+                <span class="inputUnit">hrs</span>
+              </div>
+              <button type="submit" class="ghost">Set</button>
             </form>
           </div>
         </div>
-        <div style="height: 10px"></div>
+        <div class="divider"></div>
         <form id="availabilityForm" class="modalForm">
-          <label>Date<input name="date" type="date" required /></label>
-          <label>
-            Available hours
-            <input
-              name="available_hours"
-              type="number"
-              min="0"
-              max="24"
-              step="0.25"
-              required
-            />
-          </label>
+          <div class="field-row">
+            <div class="field">
+              <label>Date</label>
+              <input name="date" type="date" required />
+            </div>
+            <div class="field">
+              <label>Available hours</label>
+              <div class="inputWithUnit">
+                <input
+                  name="available_hours"
+                  type="number"
+                  min="0"
+                  max="24"
+                  step="0.25"
+                  required
+                />
+                <span class="inputUnit">hrs</span>
+              </div>
+            </div>
+          </div>
           <input type="hidden" name="type" value="available" />
           <button type="submit" class="primary">Add slot</button>
         </form>
-        <div style="height: 12px"></div>
         <div id="availabilityList" class="taskList"></div>
       </div>
     </div>
 
+    <!-- Edit Modal -->
     <div
       id="editModal"
       class="modal hidden"
@@ -201,53 +451,328 @@
     >
       <div class="modalPanel">
         <div class="modalHead">
-          <h2 id="editTitle">Edit task</h2>
+          <div>
+            <div class="modal-eyebrow">Modify</div>
+            <h2 id="editTitle">Edit Task</h2>
+          </div>
           <button
             type="button"
             class="iconBtn"
             id="closeEditBtn"
             aria-label="Close"
           >
-            ×
+            x
           </button>
         </div>
         <form id="editForm" class="modalForm">
           <input type="hidden" name="id" id="editTaskId" />
-          <label
-            >Title<input name="title" id="editTitleInput" required
-          /></label>
-          <label
-            >Deadline (date)<input
-              name="deadline"
-              id="editDeadlineInput"
-              type="date"
-              required
-          /></label>
-          <label
-            >Hours<input
-              name="total_duration"
-              id="editHoursInput"
-              type="number"
-              min="0.25"
-              step="0.25"
-              required
-          /></label>
-          <label
-            >Difficulty<input
+          <div class="field">
+            <label>Title</label>
+            <input name="title" id="editTitleInput" required />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Deadline</label>
+              <input
+                name="deadline"
+                id="editDeadlineInput"
+                type="date"
+                required
+              />
+            </div>
+            <div class="field">
+              <label>Hours</label>
+              <input
+                name="total_duration"
+                id="editHoursInput"
+                type="number"
+                min="0.25"
+                step="0.25"
+                required
+              />
+            </div>
+          </div>
+          <div class="field">
+            <label>Difficulty</label>
+            <input
               name="difficulty"
               id="editDifficultyInput"
               type="number"
               min="1"
               max="5"
               required
-          /></label>
-          <button type="submit" class="primary">Save changes</button>
+            />
+          </div>
+          <button type="submit" class="primary fullWidth">Save changes</button>
         </form>
       </div>
     </div>
 
-    <div id="toast" class="toast hidden" role="status"></div>
+    <!-- Toast stub: main.js uses this; we observe it to bridge undo to our alert system -->
+    <div
+      id="toast"
+      role="status"
+      style="
+        position: fixed;
+        bottom: -999px;
+        left: -999px;
+        opacity: 0;
+        pointer-events: none;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      "
+    ></div>
 
     <script src="/static/main.js"></script>
+    <script>
+      (() => {
+        /* ── Theme switcher ── */
+        const THEMES = [
+          { id: "terminal", label: "Terminal" },
+          { id: "parchment", label: "Parchment" },
+          { id: "midnight", label: "Midnight" },
+          { id: "forest", label: "Forest" },
+          { id: "rose", label: "Rose" },
+          { id: "obsidian", label: "Obsidian" },
+          { id: "sky", label: "Sky" },
+          { id: "sage", label: "Sage" },
+        ];
+        const themeToggleBtn = document.getElementById("themeToggleBtn");
+        const themePicker = document.getElementById("themePicker");
+        const themePickerCloseBtn = document.getElementById(
+          "themePickerCloseBtn",
+        );
+        const themeCards = Array.from(document.querySelectorAll(".themeCard"));
+
+        function getThemeMeta(themeId) {
+          return THEMES.find((t) => t.id === themeId) || THEMES[0];
+        }
+
+        function setTheme(themeId) {
+          const resolved = getThemeMeta(themeId);
+          document.documentElement.setAttribute("data-theme", resolved.id);
+          localStorage.setItem("studyPlannerTheme", resolved.id);
+          themeToggleBtn.textContent = `Theme: ${resolved.label}`;
+          themeCards.forEach((card) => {
+            card.classList.toggle("active", card.dataset.t === resolved.id);
+          });
+        }
+
+        function openThemePicker() {
+          themePicker.classList.remove("hidden");
+          themeToggleBtn.setAttribute("aria-expanded", "true");
+        }
+
+        function closeThemePicker() {
+          themePicker.classList.add("hidden");
+          themeToggleBtn.setAttribute("aria-expanded", "false");
+        }
+
+        const savedTheme = localStorage.getItem("studyPlannerTheme");
+        setTheme(savedTheme || "terminal");
+
+        themeToggleBtn.addEventListener("click", () => {
+          if (themePicker.classList.contains("hidden")) openThemePicker();
+          else closeThemePicker();
+        });
+        themePickerCloseBtn.addEventListener("click", closeThemePicker);
+        themeCards.forEach((card) => {
+          card.addEventListener("click", () => {
+            setTheme(card.dataset.t);
+            closeThemePicker();
+          });
+        });
+        document.addEventListener("click", (e) => {
+          if (
+            !themePicker.classList.contains("hidden") &&
+            !themePicker.contains(e.target) &&
+            !themeToggleBtn.contains(e.target)
+          ) {
+            closeThemePicker();
+          }
+        });
+
+        /* ── Difficulty picker ── */
+        document.querySelectorAll(".diffBtn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document
+              .querySelectorAll(".diffBtn")
+              .forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById("difficultyValue").value = btn.dataset.val;
+          });
+        });
+
+        /* ── Alert type config ── */
+        const TYPES = {
+          error: {
+            label: "Hata",
+            duration: 10000,
+            icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                   <path d="M10 3L18 17H2L10 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                   <path d="M10 8.5V12M10 14.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                 </svg>`,
+          },
+          warning: {
+            label: "Uyari",
+            duration: 10000,
+            icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                   <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
+                   <path d="M10 7V11M10 13.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                 </svg>`,
+          },
+          success: {
+            label: "Basarili",
+            duration: 10000,
+            icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                   <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
+                   <path d="M6.5 10.5l2.5 2.5L14 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                 </svg>`,
+          },
+          info: {
+            label: "Bilgi",
+            duration: 10000,
+            icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                   <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
+                   <path d="M10 9.5V14M10 6.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                 </svg>`,
+          },
+        };
+
+        const region = document.getElementById("alertRegion");
+
+        /* ── Classify raw backend message ── */
+        function classify(raw) {
+          const t = raw.toLowerCase();
+          if (
+            /red alert|past deadline|cannot create|could not|invalid|failed/.test(
+              t,
+            )
+          )
+            return "error";
+          if (/not enough|warning|overload|cannot fit/.test(t))
+            return "warning";
+          if (
+            /created|updated|added|deleted|removed|slot|complet|partial/.test(t)
+          )
+            return "success";
+          return "info";
+        }
+
+        /* ── Strip ugly prefixes from backend strings ── */
+        function clean(raw) {
+          return raw
+            .replace(
+              /^(red alert|warning|alert|error|info)\s*[:\-\u2013]\s*/i,
+              "",
+            )
+            .replace(/^\u26a0\ufe0f\s*/, "")
+            .trim();
+        }
+
+        function getDuration(rawMsg, type) {
+          const normalized = clean(rawMsg).toLowerCase();
+          if (normalized.includes("task created")) return 4000;
+          return (TYPES[type] || TYPES.info).duration;
+        }
+
+        /* ── Build and mount an alert card ── */
+        function showAlert(rawMsg, type, undoFn) {
+          type = type || classify(rawMsg);
+          const cfg = TYPES[type] || TYPES.info;
+          const duration = getDuration(rawMsg, type);
+
+          const el = document.createElement("div");
+          el.className = "al al-" + type;
+          el.setAttribute("role", type === "error" ? "alert" : "status");
+
+          const hasBar = duration > 0;
+          el.innerHTML =
+            '<span class="al-icon">' +
+            cfg.icon +
+            "</span>" +
+            '<div class="al-body">' +
+            '<strong class="al-label">' +
+            cfg.label +
+            "</strong>" +
+            '<p class="al-msg">' +
+            clean(rawMsg) +
+            "</p>" +
+            (undoFn
+              ? '<button type="button" class="al-undo">Geri al</button>'
+              : "") +
+            "</div>" +
+            '<button type="button" class="al-close" aria-label="Kapat">' +
+            '<svg width="10" height="10" viewBox="0 0 10 10" fill="none">' +
+            '<path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+            "</svg>" +
+            "</button>" +
+            (hasBar
+              ? '<span class="al-track" aria-hidden="true"><span class="al-bar"></span></span>'
+              : "");
+
+          /* dismiss logic */
+          let timerId = null;
+          let removed = false;
+          const dismiss = () => {
+            if (removed) return;
+            removed = true;
+            if (timerId) clearTimeout(timerId);
+            el.style.pointerEvents = "none";
+            el.classList.add("al-out");
+            const removeEl = () => el.remove();
+            el.addEventListener("transitionend", removeEl, { once: true });
+            setTimeout(removeEl, 260);
+          };
+
+          el.querySelector(".al-close").addEventListener("click", dismiss);
+          if (undoFn)
+            el.querySelector(".al-undo").addEventListener("click", () => {
+              undoFn();
+              dismiss();
+            });
+
+          if (hasBar) {
+            const bar = el.querySelector(".al-bar");
+            bar.style.animationDuration = duration + "ms";
+            timerId = setTimeout(dismiss, duration);
+            el.addEventListener("mouseenter", () => {
+              clearTimeout(timerId);
+              bar.style.animationPlayState = "paused";
+            });
+            el.addEventListener("mouseleave", () => {
+              bar.style.animationPlayState = "running";
+              timerId = setTimeout(dismiss, duration * 0.12);
+            });
+          }
+
+          region.appendChild(el);
+          /* rAF so the browser paints the initial state before the enter animation */
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => el.classList.add("al-in")),
+          );
+        }
+
+        /* ── Intercept <p class="warning"> injected into #warnings by main.js ── */
+        const warnSink = document.getElementById("warnings");
+        new MutationObserver((mutations) => {
+          mutations.forEach((m) =>
+            m.addedNodes.forEach((node) => {
+              if (node.nodeType !== 1) return;
+              const txt = (node.textContent || "").trim();
+              node.style.display = "none";
+              if (txt) showAlert(txt, classify(txt));
+            }),
+          );
+        }).observe(warnSink, { childList: true });
+
+        /* ── Override showToast / hideToast used by main.js ── */
+        window.showToast = function (message, onUndo, ms) {
+          showAlert(message, classify(message), onUndo || null);
+        };
+        window.hideToast = function () {};
+      })();
+    </script>
   </body>
 </html>
