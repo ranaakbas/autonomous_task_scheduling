@@ -72,6 +72,32 @@
             </svg>
             New Task
           </button>
+          <!-- User badge -->
+          <div class="userBadge" id="userBadge" title="Your account">
+            <span class="userBadgeAvatar" id="userBadgeAvatar">?</span>
+            <span class="userBadgeName" id="userBadgeName">…</span>
+          </div>
+          <button
+            type="button"
+            id="logoutBtn"
+            class="ghost logoutBtn"
+            title="Sign out"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </nav>
       </header>
 
@@ -569,8 +595,35 @@
           themeToggleBtn.setAttribute("aria-expanded", "false");
         }
 
-        const savedTheme = localStorage.getItem("studyPlannerTheme");
-        setTheme(savedTheme || "terminal");
+        // ── Load user info + theme from server ──
+        (async () => {
+          try {
+            const user = await fetch("/auth/me").then((r) => {
+              if (r.status === 401) {
+                window.location.href = "/login";
+                return null;
+              }
+              return r.json();
+            });
+            if (!user) return;
+            // Set theme from server (user preference)
+            const serverTheme = user.theme || "parchment";
+            setTheme(serverTheme);
+            // Show user badge
+            const badge = document.getElementById("userBadge");
+            const avatar = document.getElementById("userBadgeAvatar");
+            const name = document.getElementById("userBadgeName");
+            if (badge && avatar && name) {
+              avatar.textContent = (user.username ||
+                user.email ||
+                "?")[0].toUpperCase();
+              name.textContent = user.username || user.email;
+            }
+          } catch (_) {
+            const savedTheme = localStorage.getItem("studyPlannerTheme");
+            setTheme(savedTheme || "terminal");
+          }
+        })();
 
         themeToggleBtn.addEventListener("click", () => {
           if (themePicker.classList.contains("hidden")) openThemePicker();
@@ -578,11 +631,28 @@
         });
         themePickerCloseBtn.addEventListener("click", closeThemePicker);
         themeCards.forEach((card) => {
-          card.addEventListener("click", () => {
+          card.addEventListener("click", async () => {
             setTheme(card.dataset.t);
             closeThemePicker();
+            // Persist theme to server
+            try {
+              await fetch("/auth/me/theme", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ theme: card.dataset.t }),
+              });
+            } catch (_) {}
           });
         });
+
+        // ── Logout ──
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", async () => {
+            await fetch("/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          });
+        }
         document.addEventListener("click", (e) => {
           if (
             !themePicker.classList.contains("hidden") &&

@@ -469,7 +469,8 @@ function renderCalendar() {
       const note = document.createElement("span");
       note.className = "calOverstudyNote";
       note.textContent = `+${formatHours(overExtra)}h overstudy`;
-      note.title = "You logged more than planned on this block; extra time counts toward the task.";
+      note.title =
+        "You logged more than planned on this block; extra time counts toward the task.";
       avail.appendChild(note);
     }
     cell.appendChild(avail);
