@@ -1129,6 +1129,16 @@ input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="
 [data-theme="sage"] input { background:#fff; border-width:1.5px; border-color:var(--border-strong); }
 input:focus { border-color:var(--accent-dim); box-shadow:0 0 0 3px var(--accent-pale); }
 input::placeholder { color:var(--text-dim); }
+/* Remove native +/- spinner controls for all number inputs */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 [data-theme="terminal"] input[type="date"]::-webkit-calendar-picker-indicator,
 [data-theme="midnight"] input[type="date"]::-webkit-calendar-picker-indicator,
 [data-theme="forest"]   input[type="date"]::-webkit-calendar-picker-indicator,
@@ -1448,10 +1458,7 @@ input::placeholder { color:var(--text-dim); }
   padding: 10px 40px 10px 14px;
   width: 100%; outline: none;
   transition: border-color .15s ease, box-shadow .15s ease;
-  -moz-appearance: textfield;
 }
-.cmNumberInput::-webkit-inner-spin-button,
-.cmNumberInput::-webkit-outer-spin-button { -webkit-appearance: none; }
 .cmNumberInput:focus {
   border-color: var(--accent-dim);
   box-shadow: 0 0 0 3px var(--accent-pale);
@@ -1497,4 +1504,128 @@ input::placeholder { color:var(--text-dim); }
   .cmHeader, .cmBody, .cmFooter, .cmMeta { padding-left: 18px; padding-right: 18px; }
   .cmTitle { font-size: 1.05rem; }
   .cmNumberInput { font-size: 16px; }
+}
+
+/* ══════════════════════════════════════════
+   CONFIRM DIALOG MODAL (themed — matches completeModal structure)
+══════════════════════════════════════════ */
+.confirmBackdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: cmFadeIn .18s ease both;
+}
+[data-theme="parchment"] .confirmBackdrop,
+[data-theme="rose"]      .confirmBackdrop,
+[data-theme="sky"]       .confirmBackdrop,
+[data-theme="sage"]      .confirmBackdrop { background: rgba(0,0,0,0.32); }
+
+.confirmPanel {
+  width: min(400px, 100%);
+  background: var(--panel);
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
+  animation: modalIn .22s cubic-bezier(.34,1.56,.64,1) both;
+  position: relative; overflow: hidden;
+}
+.confirmPanel::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: var(--card-edge); opacity: 0.5;
+}
+[data-theme="parchment"] .confirmPanel { background: rgba(250,248,244,.97); backdrop-filter: blur(24px); }
+[data-theme="rose"]      .confirmPanel { background: rgba(255,248,250,.97); backdrop-filter: blur(24px); }
+[data-theme="sky"]       .confirmPanel { background: rgba(245,250,253,.97); backdrop-filter: blur(24px); }
+[data-theme="sage"]      .confirmPanel { background: rgba(247,250,246,.97); backdrop-filter: blur(24px); }
+
+/* Header — mirrors .cmHeader */
+.confirmHeader {
+  padding: 22px 24px 0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.confirmHeaderLeft { flex: 1; min-width: 0; }
+
+/* Eyebrow label — mirrors .cmEyebrow */
+.confirmEyebrow {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: var(--danger); letter-spacing: .15em; text-transform: uppercase;
+  margin-bottom: 4px; opacity: 0.85;
+}
+
+/* Title — mirrors .cmTitle */
+.confirmTitle {
+  font-family: var(--font-display); font-size: 1.2rem; font-weight: 700;
+  color: var(--text); line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Close ×  — mirrors .cmCloseBtn */
+.confirmCloseBtn {
+  background: transparent; border: none;
+  font-size: 18px; line-height: 1;
+  color: var(--text-muted); padding: 4px 6px; border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  flex-shrink: 0; cursor: pointer; margin-top: 2px;
+}
+.confirmCloseBtn:hover { color: var(--danger); background: var(--danger-pale); }
+
+/* Meta badge row — mirrors .cmMeta */
+.confirmMeta {
+  padding: 10px 24px 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.confirmDangerBadge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--danger-pale);
+  border: 1px solid rgba(255,77,94,0.22);
+  border-radius: var(--radius-sm); padding: 4px 10px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--danger);
+}
+
+/* Body message — mirrors .cmHint */
+.confirmBody {
+  padding: 14px 24px 20px;
+}
+.confirmMessage {
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--text-muted); line-height: 1.5; margin: 0;
+}
+
+/* Footer — mirrors .cmFooter */
+.confirmFooter {
+  padding: 0 24px 22px;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* Cancel — mirrors .cmCancelBtn */
+.confirmCancelBtn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 9px 16px; cursor: pointer;
+  font-family: var(--font-body); font-size: 13px;
+  transition: all .15s ease;
+}
+.confirmCancelBtn:hover { border-color: var(--border-strong); color: var(--text); }
+
+/* Confirm/Delete — danger variant of .cmConfirmBtn */
+.confirmOkBtn {
+  background: var(--danger);
+  border: 1px solid transparent;
+  color: #fff;
+  border-radius: var(--radius-sm);
+  padding: 9px 20px; cursor: pointer;
+  font-family: var(--font-body); font-size: 13px; font-weight: 700;
+  transition: all .15s ease;
+  display: flex; align-items: center; gap: 6px;
+}
+.confirmOkBtn:hover { filter: brightness(1.1); box-shadow: 0 0 0 3px var(--danger-pale); }
+
+@media (max-width: 480px) {
+  .confirmHeader, .confirmMeta, .confirmBody, .confirmFooter { padding-left: 18px; padding-right: 18px; }
+  .confirmTitle { font-size: 1.05rem; }
 }

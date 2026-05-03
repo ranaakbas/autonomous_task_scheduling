@@ -104,6 +104,102 @@ function hideToast() {
   clearTimeout(completeUndoTimer);
 }
 
+/**
+ * Themed confirm dialog — replaces browser confirm().
+ * Returns a Promise<boolean>.
+ */
+function showConfirm({
+  eyebrow = "Confirm action",
+  title = "Are you sure?",
+  badge = null,
+  message = "",
+  okLabel = "Delete",
+  cancelLabel = "Cancel",
+} = {}) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "confirmBackdrop";
+    backdrop.innerHTML = `
+      <div class="confirmPanel" role="dialog" aria-modal="true" aria-label="${title}">
+        <div class="confirmHeader">
+          <div class="confirmHeaderLeft">
+            <div class="confirmEyebrow">${eyebrow}</div>
+            <div class="confirmTitle">${title}</div>
+          </div>
+          <button type="button" class="confirmCloseBtn" aria-label="${cancelLabel}">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        ${
+          badge
+            ? `
+        <div class="confirmMeta">
+          <span class="confirmDangerBadge">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+            ${badge}
+          </span>
+        </div>`
+            : ""
+        }
+        ${
+          message
+            ? `
+        <div class="confirmBody">
+          <p class="confirmMessage">${message}</p>
+        </div>`
+            : ""
+        }
+        <div class="confirmFooter">
+          <button type="button" class="confirmCancelBtn">${cancelLabel}</button>
+          <button type="button" class="confirmOkBtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+            ${okLabel}
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const cancelBtn = backdrop.querySelector(".confirmCancelBtn");
+    const closeBtn = backdrop.querySelector(".confirmCloseBtn");
+    const okBtn = backdrop.querySelector(".confirmOkBtn");
+
+    function close(result) {
+      backdrop.style.opacity = "0";
+      backdrop.style.transition = "opacity .15s ease";
+      setTimeout(() => backdrop.remove(), 160);
+      resolve(result);
+    }
+
+    okBtn.addEventListener("click", () => close(true));
+    cancelBtn.addEventListener("click", () => close(false));
+    closeBtn.addEventListener("click", () => close(false));
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close(false);
+    });
+    document.addEventListener("keydown", function onKey(e) {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", onKey);
+        close(false);
+      }
+      if (e.key === "Enter") {
+        document.removeEventListener("keydown", onKey);
+        close(true);
+      }
+    });
+
+    requestAnimationFrame(() => okBtn.focus());
+  });
+}
+
 function monthMatrix(year, month) {
   const first = new Date(year, month, 1);
   const startWeekday = (first.getDay() + 6) % 7;
@@ -512,7 +608,8 @@ function renderCalendar() {
         actions.appendChild(complete);
       }
 
-      const canUndoFromStatus = t.status === "completed" || t.status === "missed";
+      const canUndoFromStatus =
+        t.status === "completed" || t.status === "missed";
       if (canUndoFromStatus) {
         const undoFn = pendingUndoByChunkId.get(t.id);
         const undoBtn = document.createElement("button");
@@ -613,7 +710,16 @@ async function fetchTasksForModal() {
     delBtn.textContent = "Delete";
     delBtn.className = "danger";
     delBtn.onclick = async () => {
-      if (!confirm("Delete this task?")) return;
+      const ok = await showConfirm({
+        eyebrow: "Delete task",
+        title: task.title,
+        badge: "This action cannot be undone",
+        message:
+          "The task and all its scheduled blocks will be permanently removed from your plan.",
+        okLabel: "Delete",
+        cancelLabel: "Cancel",
+      });
+      if (!ok) return;
       await fetch(`/tasks/${task.id}`, { method: "DELETE" });
       await refreshPlanAndTasksStrip();
       await fetchTasksForModal();
@@ -685,6 +791,16 @@ async function fetchAvailabilityForModal() {
     delBtn.textContent = "Delete";
     delBtn.className = "danger";
     delBtn.onclick = async () => {
+      const ok = await showConfirm({
+        eyebrow: "Delete availability slot",
+        title: s.date,
+        badge: "This action cannot be undone",
+        message:
+          "This availability slot will be removed and the schedule will be recalculated.",
+        okLabel: "Delete",
+        cancelLabel: "Cancel",
+      });
+      if (!ok) return;
       await fetch(`/availability/${s.id}`, { method: "DELETE" });
       await fetchAvailabilityForModal();
       await refreshPlanAndTasksStrip();
