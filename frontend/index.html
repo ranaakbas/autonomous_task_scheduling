@@ -316,8 +316,8 @@
               <label for="cf-deadline">Deadline</label>
               <input id="cf-deadline" name="deadline" type="date" required />
             </div>
-            <div class="field">
-              <label for="cf-hours">Total hours</label>
+            <div class="field" id="cf-total-hours-field">
+              <label for="cf-hours">Toplam saat</label>
               <input
                 id="cf-hours"
                 name="total_duration"
@@ -325,7 +325,17 @@
                 min="0.25"
                 step="0.25"
                 placeholder="4"
-                required
+              />
+            </div>
+            <div class="field" id="cf-daily-hours-field" style="display: none">
+              <label for="cf-daily-hours">Günlük saat</label>
+              <input
+                id="cf-daily-hours"
+                name="daily_target_hours"
+                type="number"
+                min="0.25"
+                step="0.25"
+                placeholder="1"
               />
             </div>
           </div>
@@ -348,6 +358,44 @@
               </button>
               <button type="button" class="diffBtn" data-val="4">4</button>
               <button type="button" class="diffBtn" data-val="5">5</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Çalışma Stili</label>
+            <input
+              type="hidden"
+              name="work_style"
+              id="workStyleValue"
+              value="intensive"
+            />
+            <div class="workStylePicker" id="workStylePicker">
+              <button
+                type="button"
+                class="workStyleBtn active"
+                data-style="intensive"
+              >
+                <span class="workStyleIcon">⚡</span>
+                <span class="workStyleLabel">En kısa sürede bitir</span>
+                <span class="workStyleDesc"
+                  >Kapasiteyi doldur, erken tamamla</span
+                >
+              </button>
+              <button type="button" class="workStyleBtn" data-style="balanced">
+                <span class="workStyleIcon">⚖️</span>
+                <span class="workStyleLabel">Düzenli dağıt</span>
+                <span class="workStyleDesc"
+                  >Deadline'a kadar eşit paylaştır</span
+                >
+              </button>
+              <button
+                type="button"
+                class="workStyleBtn"
+                data-style="deadline_focused"
+              >
+                <span class="workStyleIcon">🎯</span>
+                <span class="workStyleLabel">Deadline'a yakın çalış</span>
+                <span class="workStyleDesc">Son yarıya yoğunlaştır</span>
+              </button>
             </div>
           </div>
           <button type="submit" class="primary fullWidth">
@@ -671,6 +719,41 @@
               .forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
             document.getElementById("difficultyValue").value = btn.dataset.val;
+          });
+        });
+
+        /* ── Work Style picker ── */
+        document.querySelectorAll(".workStyleBtn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document
+              .querySelectorAll(".workStyleBtn")
+              .forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            const style = btn.dataset.style;
+            document.getElementById("workStyleValue").value = style;
+
+            // Toggle duration fields based on work style
+            const totalField = document.getElementById("cf-total-hours-field");
+            const dailyField = document.getElementById("cf-daily-hours-field");
+            const totalInput = document.getElementById("cf-hours");
+            const dailyInput = document.getElementById("cf-daily-hours");
+            if (style === "balanced") {
+              if (totalField) totalField.style.display = "none";
+              if (dailyField) dailyField.style.display = "";
+              if (totalInput) {
+                totalInput.required = false;
+                totalInput.value = "";
+              }
+              if (dailyInput) dailyInput.required = true;
+            } else {
+              if (totalField) totalField.style.display = "";
+              if (dailyField) dailyField.style.display = "none";
+              if (totalInput) totalInput.required = true;
+              if (dailyInput) {
+                dailyInput.required = false;
+                dailyInput.value = "";
+              }
+            }
           });
         });
 

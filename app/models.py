@@ -110,6 +110,10 @@ class UserTask(Base):
     remaining_duration = Column(Float, nullable=False, default=0.0)
     difficulty = Column(Integer, nullable=False)
     completed = Column(Boolean, default=False, nullable=False)
+    work_style = Column(String, nullable=False, default="intensive")
+    # For "balanced" work style: how many hours per day the user wants to work on this task.
+    # When set, total_duration is derived as daily_target_hours * days_until_deadline.
+    daily_target_hours = Column(Float, nullable=True, default=None)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

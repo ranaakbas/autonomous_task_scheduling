@@ -150,6 +150,23 @@ def ensure_schema_updates() -> None:
                             "ALTER TABLE user_tasks ADD COLUMN estimated_duration FLOAT DEFAULT 0"
                         )
                     )
+                if "work_style" not in ut_cols:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE user_tasks ADD COLUMN work_style VARCHAR DEFAULT 'intensive'"
+                        )
+                    )
+                    conn.execute(
+                        text(
+                            "UPDATE user_tasks SET work_style = 'intensive' WHERE work_style IS NULL"
+                        )
+                    )
+                if "daily_target_hours" not in ut_cols:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE user_tasks ADD COLUMN daily_target_hours FLOAT DEFAULT NULL"
+                        )
+                    )
         except Exception:
             pass
 
@@ -224,8 +241,21 @@ def create_task(
             detail="RED ALERT: You cannot create a task with a past deadline.",
         )
     payload = task.model_dump()
-    payload["remaining_duration"] = payload["total_duration"]
-    payload["estimated_duration"] = payload["total_duration"]
+
+    # For balanced work style: total_duration is derived from daily_target_hours * days_until_deadline.
+    # remaining_duration tracks consumed sessions; each session = daily_target_hours.
+    if task.work_style == "balanced":
+        days_until_deadline = max((task.deadline - date.today()).days + 1, 1)
+        computed_total = (
+            round(float(task.daily_target_hours) * days_until_deadline * 4) / 4
+        )
+        payload["total_duration"] = computed_total
+        payload["remaining_duration"] = computed_total
+        payload["estimated_duration"] = computed_total
+    else:
+        payload["remaining_duration"] = payload["total_duration"]
+        payload["estimated_duration"] = payload["total_duration"]
+
     payload["user_id"] = current_user.id
     db_task = models.UserTask(**payload)
     db.add(db_task)
@@ -447,33 +477,82 @@ class UserSchedulingEngine:
                     available_hours += dur
             raw = available_hours if has_explicit_available else base_fallback
 
-        completed_hours = (
+        # Only non-balanced completed items consume daily capacity.
+        # Balanced items have their own "1 session per day" logic and should NOT
+        # reduce the day's capacity — otherwise the scheduler would see leftover
+        # capacity and assign another task's session to the same day.
+        completed_items = (
             self.db.query(models.UserScheduleItem)
             .filter(
                 models.UserScheduleItem.user_id == self.user_id,
                 models.UserScheduleItem.date == day,
                 models.UserScheduleItem.status == "completed",
             )
-            .with_entities(models.UserScheduleItem.completed_duration)
             .all()
         )
-        consumed = sum(float(h[0] or 0.0) for h in completed_hours)
+        consumed = 0.0
+        for ci in completed_items:
+            # Look up the task's work style to exclude balanced items
+            task_obj = (
+                self.db.query(models.UserTask)
+                .filter(
+                    models.UserTask.id == ci.task_id,
+                    models.UserTask.user_id == self.user_id,
+                )
+                .first()
+            )
+            ws = (
+                getattr(task_obj, "work_style", "intensive")
+                if task_obj
+                else "intensive"
+            )
+            if ws != "balanced":
+                consumed += float(ci.completed_duration or 0.0)
         return max(0.0, min(max(0.0, raw - consumed), max_cap))
 
     def generate_schedule(self):
         from collections import defaultdict
 
         profile = self._get_or_create_profile()
-        tasks = (
+        all_tasks = (
             self.db.query(models.UserTask)
             .filter(
                 models.UserTask.user_id == self.user_id,
                 models.UserTask.completed.is_(False),
                 models.UserTask.remaining_duration > 0,
             )
-            .order_by(models.UserTask.deadline.asc(), models.UserTask.difficulty.desc())
             .all()
         )
+
+        # Split by work_style and sort accordingly:
+        # - intensive/balanced: deadline asc, difficulty desc (urgent+hard first)
+        # - deadline_focused: deadline asc, difficulty asc (low priority processed first
+        #   so they consume earlier days; high priority tasks run last and claim
+        #   the deadline-adjacent slots that remain)
+        non_df_tasks = sorted(
+            [
+                t
+                for t in all_tasks
+                if (getattr(t, "work_style", "intensive") or "intensive")
+                != "deadline_focused"
+            ],
+            key=lambda t: (t.deadline, -t.difficulty),
+        )
+        df_tasks = sorted(
+            [
+                t
+                for t in all_tasks
+                if (getattr(t, "work_style", "intensive") or "intensive")
+                == "deadline_focused"
+            ],
+            key=lambda t: (
+                t.deadline,
+                t.difficulty,
+            ),  # low difficulty first → pushed to early days
+        )
+        # Process non-deadline_focused first (they claim days from today forward),
+        # then deadline_focused (they claim days from deadline backward)
+        tasks = non_df_tasks + df_tasks
 
         self.db.query(models.UserScheduleItem).filter(
             models.UserScheduleItem.user_id == self.user_id,
@@ -488,9 +567,12 @@ class UserSchedulingEngine:
         horizon_end = max_deadline + timedelta(days=21)
 
         remaining_by_date: dict = defaultdict(float)
+        original_capacity_by_date: dict = {}
         d = date.today()
         while d <= horizon_end:
-            remaining_by_date[d] = self._daily_capacity_for(d, profile)
+            cap = self._daily_capacity_for(d, profile)
+            remaining_by_date[d] = cap
+            original_capacity_by_date[d] = cap
             d += timedelta(days=1)
 
         # If a task is marked missed on a date, do not schedule it again on that
@@ -508,57 +590,206 @@ class UserSchedulingEngine:
         for task_id, missed_day in missed_rows:
             skipped_dates_by_task[int(task_id)].add(missed_day)
 
+        # ── deadline_focused reservation pass ─────────────────────────────────
+        # Before intensive/balanced tasks claim capacity, pre-reserve slots for
+        # deadline_focused tasks (deadline → today, same as their scheduling order).
+        # This ensures df tasks always get capacity regardless of other tasks.
+        df_reserved: dict[int, dict[date, float]] = {}  # task.id → {date: chunk}
+        for task in df_tasks:
+            hours_left = float(task.remaining_duration)
+            skipped = skipped_dates_by_task.get(task.id, set())
+            available_days: list[date] = []
+            d = date.today()
+            while d <= task.deadline:
+                if d not in skipped and remaining_by_date.get(d, 0.0) > 0.001:
+                    available_days.append(d)
+                d += timedelta(days=1)
+
+            reserved: dict[date, float] = {}
+            hours_remaining = hours_left
+            for day in reversed(available_days):
+                if hours_remaining <= 0.001:
+                    break
+                cap_left = remaining_by_date.get(day, 0.0)
+                if cap_left < 0.001:
+                    continue
+                chunk = round(min(hours_remaining, cap_left) * 4) / 4
+                chunk = min(chunk, hours_remaining, cap_left)
+                if chunk < 0.001:
+                    continue
+                reserved[day] = chunk
+                remaining_by_date[day] -= chunk
+                hours_remaining -= chunk
+
+            df_reserved[task.id] = reserved
+        # ─────────────────────────────────────────────────────────────────────
+
+        # Tracks which dates already have a balanced task assigned (pending or completed).
+        # A day can only hold ONE balanced session — remaining capacity on that
+        # day stays available for intensive/df tasks but not for another balanced task.
+        # Pre-populate with dates that already have a completed balanced item so that
+        # re-scheduling after a Done action doesn't assign a second session to the same day.
+        # Tracks (date, task_id) pairs that already have a balanced session (pending or completed).
+        # Each balanced task can have at most ONE session per day — but multiple balanced
+        # tasks can share the same day (one session each).
+        balanced_claimed: set[tuple] = set()
+        existing_balanced_completed = (
+            self.db.query(models.UserScheduleItem.date, models.UserScheduleItem.task_id)
+            .filter(
+                models.UserScheduleItem.user_id == self.user_id,
+                models.UserScheduleItem.status == "completed",
+            )
+            .all()
+        )
+        for _date, _task_id in existing_balanced_completed:
+            task_obj = (
+                self.db.query(models.UserTask)
+                .filter(
+                    models.UserTask.id == _task_id,
+                    models.UserTask.user_id == self.user_id,
+                )
+                .first()
+            )
+            if (
+                task_obj
+                and (getattr(task_obj, "work_style", "intensive") or "intensive")
+                == "balanced"
+            ):
+                balanced_claimed.add((_date, int(_task_id)))
+
         for task in tasks:
             hours_left = float(task.remaining_duration)
-            day = date.today()
-            guard = 0
-            while hours_left > 0.001:
-                guard += 1
-                if guard > 4000:
-                    warnings.append("Scheduler stopped early due to iteration limits.")
-                    break
-                if day > task.deadline:
+            work_style = getattr(task, "work_style", "intensive") or "intensive"
+            skipped = skipped_dates_by_task.get(task.id, set())
+
+            # Build ordered list of available days: today → deadline
+            available_days: list[date] = []
+            d = date.today()
+            while d <= task.deadline:
+                if d not in skipped and remaining_by_date.get(d, 0.0) > 0.001:
+                    available_days.append(d)
+                d += timedelta(days=1)
+
+            if not available_days:
+                if hours_left > 0.001:
                     warnings.append(
                         f"Not enough calendar time before deadline for «{task.title}»."
                     )
-                    break
-                if day > horizon_end:
-                    warnings.append(f"Horizon overflow for «{task.title}».")
-                    break
-                if day in skipped_dates_by_task.get(task.id, set()):
-                    day += timedelta(days=1)
-                    continue
-                cap_left = remaining_by_date.get(day, 0.0)
-                if cap_left < 0.001:
-                    day += timedelta(days=1)
-                    continue
-                span = max((task.deadline - day).days + 1, 1)
-                ideal = hours_left / span
-                ideal = max(ideal, min(hours_left, cap_left))
-                chunk = min(hours_left, cap_left, max(ideal, 0.25))
-                if chunk < 0.25:
-                    chunk = min(hours_left, cap_left)
-                if chunk < 0.001:
-                    day += timedelta(days=1)
-                    continue
-                chunk = round(chunk * 4) / 4
-                chunk = min(chunk, hours_left, cap_left)
-                if chunk < 0.001:
-                    day += timedelta(days=1)
-                    continue
-                self.db.add(
-                    models.UserScheduleItem(
-                        user_id=self.user_id,
-                        task_id=task.id,
-                        date=day,
-                        duration=chunk,
-                        status="pending",
+                continue
+
+            hours_remaining = hours_left
+
+            if work_style == "intensive":
+                # Fill from today forward, pack each day to capacity
+                for day in available_days:
+                    if hours_remaining <= 0.001:
+                        break
+                    cap_left = remaining_by_date.get(day, 0.0)
+                    if cap_left < 0.001:
+                        continue
+                    chunk = round(min(hours_remaining, cap_left) * 4) / 4
+                    chunk = min(chunk, hours_remaining, cap_left)
+                    if chunk < 0.001:
+                        continue
+                    self.db.add(
+                        models.UserScheduleItem(
+                            user_id=self.user_id,
+                            task_id=task.id,
+                            date=day,
+                            duration=chunk,
+                            status="pending",
+                        )
                     )
+                    remaining_by_date[day] -= chunk
+                    hours_remaining -= chunk
+
+            elif work_style == "balanced":
+                # Balanced mode: the user specifies a fixed daily_target_hours they want
+                # to work each day. Each day gets exactly that many hours as a schedule
+                # item. When the user logs >= daily_target_hours for a day, that item is
+                # marked Done and the task continues the next day with the same quota.
+                # The task is finished when remaining_duration reaches 0.
+                daily_target = float(getattr(task, "daily_target_hours", None) or 0.0)
+                if daily_target <= 0.001:
+                    # Fallback: spread evenly if daily_target_hours somehow not set
+                    all_window_days_fb: list[date] = []
+                    d = date.today()
+                    while d <= task.deadline:
+                        if d not in skipped:
+                            all_window_days_fb.append(d)
+                        d += timedelta(days=1)
+                    if all_window_days_fb:
+                        daily_target = max(
+                            round((hours_left / len(all_window_days_fb)) * 4) / 4, 0.25
+                        )
+                    else:
+                        daily_target = 0.25
+
+                # Emit one schedule item per day for exactly daily_target hours.
+                # Each day can only hold ONE balanced task session (balanced_claimed_dates
+                # guards this). Intensive/df tasks can still fill remaining capacity on
+                # the same day — only other balanced tasks are blocked.
+                d = date.today()
+                while hours_remaining > 0.001 and d <= task.deadline:
+                    if d in skipped or (d, task.id) in balanced_claimed:
+                        d += timedelta(days=1)
+                        continue
+                    cap_left = remaining_by_date.get(d, 0.0)
+                    if cap_left < 0.001:
+                        d += timedelta(days=1)
+                        continue
+                    # Each day gets exactly daily_target hours (or whatever remains)
+                    chunk = min(hours_remaining, daily_target, cap_left)
+                    chunk = round(chunk * 4) / 4
+                    chunk = min(chunk, hours_remaining, cap_left)
+                    if chunk < 0.001:
+                        d += timedelta(days=1)
+                        continue
+                    self.db.add(
+                        models.UserScheduleItem(
+                            user_id=self.user_id,
+                            task_id=task.id,
+                            date=d,
+                            duration=chunk,
+                            status="pending",
+                        )
+                    )
+                    remaining_by_date[d] -= chunk
+                    hours_remaining -= chunk
+                    # Mark this (day, task) pair as claimed so this task doesn't
+                    # get a second session on the same day. Other balanced tasks can still
+                    # claim the same day for their own session.
+                    balanced_claimed.add((d, task.id))
+                    d += timedelta(days=1)
+
+            else:  # deadline_focused
+                # Capacity was already reserved in the pre-pass (df_reserved).
+                # Simply emit schedule items for the reserved slots — no further
+                # capacity deduction needed (already done during reservation).
+                reserved = df_reserved.get(task.id, {})
+                for day in sorted(reserved.keys(), reverse=True):
+                    chunk = reserved[day]
+                    if chunk < 0.001:
+                        continue
+                    self.db.add(
+                        models.UserScheduleItem(
+                            user_id=self.user_id,
+                            task_id=task.id,
+                            date=day,
+                            duration=chunk,
+                            status="pending",
+                        )
+                    )
+                    hours_remaining -= chunk
+
+            # For balanced tasks: "hours_remaining > 0" just means the task's
+            # total_duration (daily_target × original days) wasn't fully consumed —
+            # this is expected if the user has already completed some sessions.
+            # Only warn for non-balanced tasks, or if balanced truly ran out of days.
+            if hours_remaining > 0.001 and work_style != "balanced":
+                warnings.append(
+                    f"Not enough calendar time before deadline for «{task.title}»."
                 )
-                remaining_by_date[day] -= chunk
-                hours_left -= chunk
-                if remaining_by_date[day] < 0.001:
-                    day += timedelta(days=1)
 
         self.db.commit()
         range_start = date.today() - timedelta(days=7)
@@ -635,6 +866,12 @@ class UserSchedulingEngine:
             t = task_map.get(row.task_id)
             title = t.title if t else f"Task #{row.task_id}"
             tr = float(t.remaining_duration) if t else 0.0
+            t_work_style = getattr(t, "work_style", "intensive") if t else "intensive"
+            t_daily_target = (
+                float(t.daily_target_hours)
+                if t and getattr(t, "daily_target_hours", None)
+                else None
+            )
             grouped[row.date].append(
                 {
                     "id": row.id,
@@ -647,6 +884,9 @@ class UserSchedulingEngine:
                     "task_remaining_duration": tr,
                     "status": row.status,
                     "undoable": row.id in undoable_ids,
+                    "daily_target_hours": (
+                        t_daily_target if t_work_style == "balanced" else None
+                    ),
                 }
             )
 
@@ -737,8 +977,25 @@ def update_schedule_item(
     }
 
     item.completed_duration = completed_hours
+    work_style = getattr(task, "work_style", "intensive") or "intensive"
+
     if completed_hours <= 1e-9:
         item.status = "missed"
+    elif work_style == "balanced":
+        # For balanced tasks: the day is considered "done" when the user has logged
+        # at least daily_target_hours for that session. The task's remaining_duration
+        # is reduced by daily_target_hours (one full session), not by completed_hours,
+        # so each day always counts as exactly one session regardless of over/under-logging.
+        daily_target = float(getattr(task, "daily_target_hours", None) or item.duration)
+        if completed_hours >= daily_target - 1e-9:
+            # Full session completed — mark done and deduct one session
+            item.status = "completed"
+            task.remaining_duration = max(
+                0.0, float(task.remaining_duration) - daily_target
+            )
+        else:
+            # Partial session — mark missed (did not meet the daily target)
+            item.status = "missed"
     else:
         item.status = "completed"
         task.remaining_duration = max(

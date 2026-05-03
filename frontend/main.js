@@ -330,11 +330,25 @@ function showCompleteModal(chunk) {
     const remainingSafe = Number.isFinite(remainingOnTask)
       ? Math.max(0, remainingOnTask)
       : 0;
-    const opts = [
-      { pct: "0%", label: "Missed", value: 0, cls: "cm-zero" },
-      { pct: "50%", label: "", value: assigned * 0.5, cls: "" },
-      { pct: "100%", label: "Done", value: assigned, cls: "cm-full" },
-    ];
+    const isBalanced =
+      chunk.daily_target_hours != null &&
+      Number.isFinite(Number(chunk.daily_target_hours));
+    const dailyTarget = isBalanced
+      ? Number(chunk.daily_target_hours)
+      : assigned;
+
+    // For balanced: quick options are 0% (Missed) and the daily target (Done)
+    // For others: 0% / 50% / 100% of assigned
+    const opts = isBalanced
+      ? [
+          { pct: "0%", label: "Missed", value: 0, cls: "cm-zero" },
+          { pct: "100%", label: "Done", value: dailyTarget, cls: "cm-full" },
+        ]
+      : [
+          { pct: "0%", label: "Missed", value: 0, cls: "cm-zero" },
+          { pct: "50%", label: "", value: assigned * 0.5, cls: "" },
+          { pct: "100%", label: "Done", value: assigned, cls: "cm-full" },
+        ];
 
     const backdrop = document.createElement("div");
     backdrop.className = "completeModalBackdrop";
@@ -359,12 +373,16 @@ function showCompleteModal(chunk) {
             Assigned: ${formatHours(assigned)}h
           </span>
           ${
-            remainingSafe > 1e-9
+            !isBalanced && remainingSafe > 1e-9
               ? `<span class="cmRemainingBadge">Task remaining: ${formatHours(remainingSafe)}h</span>`
               : ""
           }
         </div>
-        <p class="cmHint muted">You can log more than assigned (overstudy). Extra hours reduce this task&rsquo;s remaining time and the schedule rebuilds from what is left.</p>
+        <p class="cmHint muted">${
+          isBalanced
+            ? `Hedef: günlük <strong>${formatHours(dailyTarget)}h</strong>. Bu saate ulaşırsan gün Done sayılır ve görev ertesi güne geçer.`
+            : "You can log more than assigned (overstudy). Extra hours reduce this task&rsquo;s remaining time and the schedule rebuilds from what is left."
+        }</p>
         <div class="cmBody">
           <div class="cmQuickLabel">Quick select</div>
           <div class="cmQuickGrid">
@@ -383,7 +401,7 @@ function showCompleteModal(chunk) {
           <div class="cmInputRow">
             <div class="cmInputWrap">
               <input type="number" class="cmNumberInput" min="0" max="${MAX_COMPLETE_SESSION_HOURS}" step="0.25"
-                value="${formatHours(assigned)}" inputmode="decimal" autocomplete="off">
+                value="${formatHours(isBalanced ? dailyTarget : assigned)}" inputmode="decimal" autocomplete="off">
               <span class="cmInputUnit">h</span>
             </div>
           </div>
@@ -416,7 +434,7 @@ function showCompleteModal(chunk) {
         btn.classList.toggle("cm-selected", Math.abs(bVal - val) < 1e-9);
       });
     }
-    syncQuickBtns(assigned);
+    syncQuickBtns(isBalanced ? dailyTarget : assigned);
 
     quickBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -663,7 +681,11 @@ async function fetchTasksForModal() {
         <strong>${task.title}</strong>
         <span>${task.deadline}</span>
       </div>
-      <p class="muted">${task.total_duration}h planned | ${task.remaining_duration}h remaining | difficulty ${task.difficulty}${doneLabel}</p>
+      <p class="muted">${
+        task.work_style === "balanced" && task.daily_target_hours
+          ? `${task.daily_target_hours}h/gün | difficulty ${task.difficulty}${doneLabel}`
+          : `${task.total_duration}h planned | ${task.remaining_duration}h remaining | difficulty ${task.difficulty}${doneLabel}`
+      }</p>
     `;
 
     const actions = document.createElement("div");
@@ -687,7 +709,8 @@ async function fetchTasksForModal() {
         // Task-level completion should not expose chunk-level undo for this task.
         for (const dayTasks of lastPlanByDate.values()) {
           for (const chunk of dayTasks || []) {
-            if (chunk.task_id === task.id) pendingUndoByChunkId.delete(chunk.id);
+            if (chunk.task_id === task.id)
+              pendingUndoByChunkId.delete(chunk.id);
           }
         }
         await fetch(`/tasks/${task.id}`, {
@@ -926,14 +949,45 @@ taskForm.addEventListener("submit", async (e) => {
   try {
     const formData = new FormData(taskForm);
     const payload = Object.fromEntries(formData.entries());
-    payload.total_duration = Number(payload.total_duration);
     payload.difficulty = Number(payload.difficulty);
+    payload.work_style = payload.work_style || "intensive";
+
+    if (payload.work_style === "balanced") {
+      // Balanced: send daily_target_hours, not total_duration
+      payload.daily_target_hours = Number(payload.daily_target_hours);
+      delete payload.total_duration;
+    } else {
+      payload.total_duration = Number(payload.total_duration);
+      delete payload.daily_target_hours;
+    }
+
     await fetchJson("/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     taskForm.reset();
+    // Reset work style picker to default (intensive)
+    document
+      .querySelectorAll(".workStyleBtn")
+      .forEach((b) => b.classList.remove("active"));
+    const defaultStyleBtn = document.querySelector(
+      '.workStyleBtn[data-style="intensive"]',
+    );
+    if (defaultStyleBtn) defaultStyleBtn.classList.add("active");
+    if (document.getElementById("workStyleValue"))
+      document.getElementById("workStyleValue").value = "intensive";
+    // Reset hours field visibility
+    const totalField = document.getElementById("cf-total-hours-field");
+    const dailyField = document.getElementById("cf-daily-hours-field");
+    if (totalField) {
+      totalField.style.display = "";
+      document.getElementById("cf-hours").required = true;
+    }
+    if (dailyField) {
+      dailyField.style.display = "none";
+      document.getElementById("cf-daily-hours").required = false;
+    }
     await refreshPlanAndTasksStrip();
     showToast("Task created.");
   } catch (err) {
