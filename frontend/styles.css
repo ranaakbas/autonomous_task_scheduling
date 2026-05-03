@@ -957,13 +957,26 @@ button.themeCard {
 .calDayNum { font-size:11px; font-weight:700; color:var(--text-muted); font-family:var(--font-mono); }
 
 .calAvail {
+  display:flex; flex-direction:column; align-items:flex-start; gap:3px;
   font-size:10px; font-weight:600;
   color:var(--accent); background:var(--accent-pale);
   border:1px solid rgba(128,128,128,0.2);
-  border-radius:999px; padding:1px 7px;
-  width:fit-content; font-family:var(--font-mono); letter-spacing:0.04em;
+  border-radius:var(--radius-sm); padding:4px 8px;
+  width:fit-content; max-width:100%; font-family:var(--font-mono); letter-spacing:0.04em;
+}
+.calAvailMain {
+  line-height:1.2;
+  border-radius:999px;
+  padding:1px 0;
+}
+.calOverstudyNote {
+  font-size:9px; font-weight:700;
+  color:var(--accent2); line-height:1.2;
+  letter-spacing:0.02em;
+  text-transform:uppercase;
 }
 .calAvail.overwork { color:var(--danger); background:var(--danger-pale); }
+.calAvail.overwork .calOverstudyNote { color:var(--danger); opacity:0.95; }
 
 .calChunk {
   display:flex; flex-direction:column; gap:4px;
@@ -1284,6 +1297,20 @@ input::placeholder { color:var(--text-dim); }
   font-family: var(--font-mono); font-size: 11px; color: var(--accent2);
 }
 .cmAssignedBadge svg { opacity: 0.8; }
+
+.cmRemainingBadge {
+  display: inline-flex; align-items: center;
+  background: var(--surface); border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm); padding: 4px 10px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+}
+
+.cmHint {
+  padding: 10px 24px 0;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
 
 .cmBody { padding: 18px 24px; }
 

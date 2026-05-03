@@ -3,6 +3,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+# Upper bound for hours logged in one schedule-item completion (typo guard).
+MAX_COMPLETED_HOURS_PER_SESSION = 24.0
+
 
 class TaskBase(BaseModel):
     title: str
@@ -50,6 +53,10 @@ class ScheduleTask(BaseModel):
     assigned_duration: float
     completed_duration: float
     task_id: int
+    task_remaining_duration: float = Field(
+        default=0.0,
+        description="Hours left on the task (Task.remaining_duration) when plan was built.",
+    )
     status: str
     undoable: bool = False
 
@@ -66,7 +73,7 @@ class PlanResponse(BaseModel):
 
 
 class ScheduleItemStatusUpdate(BaseModel):
-    completed_hours: float = Field(ge=0)
+    completed_hours: float = Field(ge=0, le=MAX_COMPLETED_HOURS_PER_SESSION)
 
 
 class AvailabilitySlotBase(BaseModel):

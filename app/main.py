@@ -434,10 +434,7 @@ def update_schedule_item(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    assigned = float(item.duration)
     completed_hours = float(update.completed_hours)
-    if completed_hours < 0:
-        raise HTTPException(status_code=400, detail="completed_hours must be >= 0")
 
     # Snapshot for event-based undo
     schedule_snapshot = None

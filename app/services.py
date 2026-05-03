@@ -186,6 +186,11 @@ class SchedulingEngine:
         for row in rows:
             t = task_map.get(row.task_id)
             title = t.title if t else f"Task #{row.task_id}"
+            tr = (
+                float(t.remaining_duration)
+                if t
+                else 0.0
+            )
             grouped[row.date].append(
                 {
                     "id": row.id,
@@ -195,6 +200,7 @@ class SchedulingEngine:
                         getattr(row, "completed_duration", 0.0) or 0.0
                     ),
                     "task_id": row.task_id,
+                    "task_remaining_duration": tr,
                     "status": row.status,
                     "undoable": row.id in undoable_ids,
                 }

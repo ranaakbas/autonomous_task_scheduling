@@ -210,9 +210,30 @@ function effectiveAvailabilityForISO(iso) {
   return Math.max(0, base - consumed);
 }
 
+/** Sum of (logged − planned) hours for completed chunks where logged exceeded the block (overstudy). */
+function overstudyExtraHoursForISO(iso) {
+  const tasks = lastPlanByDate.get(iso) || [];
+  let extra = 0;
+  for (const t of tasks) {
+    if (t.status !== "completed") continue;
+    const completed = Number(t.completed_duration);
+    const assigned = Number(t.assigned_duration);
+    if (!Number.isFinite(completed) || !Number.isFinite(assigned)) continue;
+    if (completed > assigned + 1e-9) extra += completed - assigned;
+  }
+  return extra;
+}
+
+/** Upper bound for hours logged in one completion (typo guard). */
+const MAX_COMPLETE_SESSION_HOURS = 24;
+
 function showCompleteModal(chunk) {
   return new Promise((resolve) => {
     const assigned = Number(chunk.assigned_duration);
+    const remainingOnTask = Number(chunk.task_remaining_duration);
+    const remainingSafe = Number.isFinite(remainingOnTask)
+      ? Math.max(0, remainingOnTask)
+      : 0;
     const opts = [
       { pct: "0%", label: "Missed", value: 0, cls: "cm-zero" },
       { pct: "50%", label: "", value: assigned * 0.5, cls: "" },
@@ -241,7 +262,13 @@ function showCompleteModal(chunk) {
             </svg>
             Assigned: ${formatHours(assigned)}h
           </span>
+          ${
+            remainingSafe > 1e-9
+              ? `<span class="cmRemainingBadge">Task remaining: ${formatHours(remainingSafe)}h</span>`
+              : ""
+          }
         </div>
+        <p class="cmHint muted">You can log more than assigned (overstudy). Extra hours reduce this task&rsquo;s remaining time and the schedule rebuilds from what is left.</p>
         <div class="cmBody">
           <div class="cmQuickLabel">Quick select</div>
           <div class="cmQuickGrid">
@@ -259,7 +286,7 @@ function showCompleteModal(chunk) {
           <div class="cmInputLabel">Or enter hours manually</div>
           <div class="cmInputRow">
             <div class="cmInputWrap">
-              <input type="number" class="cmNumberInput" min="0" max="${assigned}" step="0.25"
+              <input type="number" class="cmNumberInput" min="0" max="${MAX_COMPLETE_SESSION_HOURS}" step="0.25"
                 value="${formatHours(assigned)}" inputmode="decimal" autocomplete="off">
               <span class="cmInputUnit">h</span>
             </div>
@@ -341,13 +368,17 @@ function showCompleteModal(chunk) {
 }
 
 async function completeChunkWithPrompt(chunk) {
-  const assigned = Number(chunk.assigned_duration);
-
   const raw = await showCompleteModal(chunk);
   if (raw === null) return null;
   const val = Number(raw);
-  if (!Number.isFinite(val) || val < 0 || val > assigned + 1e-9) {
-    showToast("You entered an invalid number of hours.");
+  if (
+    !Number.isFinite(val) ||
+    val < 0 ||
+    val > MAX_COMPLETE_SESSION_HOURS + 1e-9
+  ) {
+    showToast(
+      `Enter hours between 0 and ${MAX_COMPLETE_SESSION_HOURS} (extra study counts toward remaining time).`,
+    );
     return null;
   }
   const res = await fetch(`/schedule-items/${chunk.id}`, {
@@ -429,7 +460,18 @@ function renderCalendar() {
 
     const avail = document.createElement("div");
     avail.className = "calAvail";
-    avail.textContent = `${formatHours(effectiveAvailabilityForISO(iso))}h available`;
+    const availMain = document.createElement("span");
+    availMain.className = "calAvailMain";
+    availMain.textContent = `${formatHours(effectiveAvailabilityForISO(iso))}h available`;
+    avail.appendChild(availMain);
+    const overExtra = overstudyExtraHoursForISO(iso);
+    if (overExtra > 1e-9) {
+      const note = document.createElement("span");
+      note.className = "calOverstudyNote";
+      note.textContent = `+${formatHours(overExtra)}h overstudy`;
+      note.title = "You logged more than planned on this block; extra time counts toward the task.";
+      avail.appendChild(note);
+    }
     cell.appendChild(avail);
 
     const tasks = lastPlanByDate.get(iso) || [];
@@ -445,12 +487,13 @@ function renderCalendar() {
       left.className = "calChunkMain";
       const assignedH = Number(t.assigned_duration);
       const completedH = Number(t.completed_duration);
-      const hoursLabel =
+      const hoursMismatch =
         t.status === "completed" &&
         Number.isFinite(completedH) &&
-        completedH + 1e-9 < assignedH
-          ? `${formatHours(completedH)}h / ${formatHours(assignedH)}h`
-          : `${formatHours(assignedH)}h`;
+        (completedH + 1e-9 < assignedH || completedH > assignedH + 1e-9);
+      const hoursLabel = hoursMismatch
+        ? `${formatHours(completedH)}h / ${formatHours(assignedH)}h planned`
+        : `${formatHours(assignedH)}h`;
       left.innerHTML = `${statusIcon(t.status)} <span class="calChunkTitle">${t.task}</span> <span class="muted">${hoursLabel}</span>`;
 
       const actions = document.createElement("div");
