@@ -493,6 +493,21 @@ class UserSchedulingEngine:
             remaining_by_date[d] = self._daily_capacity_for(d, profile)
             d += timedelta(days=1)
 
+        # If a task is marked missed on a date, do not schedule it again on that
+        # same date. This applies for today and future dates in the planning horizon.
+        missed_rows = (
+            self.db.query(models.UserScheduleItem.task_id, models.UserScheduleItem.date)
+            .filter(
+                models.UserScheduleItem.user_id == self.user_id,
+                models.UserScheduleItem.status == "missed",
+                models.UserScheduleItem.date >= date.today(),
+            )
+            .all()
+        )
+        skipped_dates_by_task: dict[int, set[date]] = defaultdict(set)
+        for task_id, missed_day in missed_rows:
+            skipped_dates_by_task[int(task_id)].add(missed_day)
+
         for task in tasks:
             hours_left = float(task.remaining_duration)
             day = date.today()
@@ -510,6 +525,9 @@ class UserSchedulingEngine:
                 if day > horizon_end:
                     warnings.append(f"Horizon overflow for «{task.title}».")
                     break
+                if day in skipped_dates_by_task.get(task.id, set()):
+                    day += timedelta(days=1)
+                    continue
                 cap_left = remaining_by_date.get(day, 0.0)
                 if cap_left < 0.001:
                     day += timedelta(days=1)

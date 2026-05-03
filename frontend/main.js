@@ -512,13 +512,29 @@ function renderCalendar() {
         actions.appendChild(complete);
       }
 
-      if (t.status === "completed" && pendingUndoByChunkId.has(t.id)) {
+      const canUndoFromStatus = t.status === "completed" || t.status === "missed";
+      if (canUndoFromStatus) {
         const undoFn = pendingUndoByChunkId.get(t.id);
         const undoBtn = document.createElement("button");
         undoBtn.type = "button";
         undoBtn.textContent = "Undo";
         undoBtn.className = "calChunkUndo";
-        undoBtn.onclick = () => undoFn();
+        undoBtn.onclick = async () => {
+          if (undoFn) {
+            await undoFn();
+            return;
+          }
+          const res = await fetch("/schedule-items/" + t.id + "/undo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          if (!res.ok) {
+            showToast("Undo not available for this item.");
+            return;
+          }
+          await refreshPlanAndTasksStrip();
+        };
         actions.appendChild(undoBtn);
       }
 

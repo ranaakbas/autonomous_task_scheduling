@@ -75,9 +75,22 @@ class SchedulingEngine:
             remaining_by_date[d] = self._daily_capacity_for(d, profile)
             d += timedelta(days=1)
 
+        # If a task is marked missed today, do not schedule it again for today.
+        task_start_date: dict[int, date] = defaultdict(lambda: date.today())
+        missed_today_task_ids = (
+            self.db.query(models.ScheduleItem.task_id)
+            .filter(
+                models.ScheduleItem.status == "missed",
+                models.ScheduleItem.date == date.today(),
+            )
+            .all()
+        )
+        for (task_id,) in missed_today_task_ids:
+            task_start_date[int(task_id)] = date.today() + timedelta(days=1)
+
         for task in tasks:
             hours_left = float(task.remaining_duration)
-            day = date.today()
+            day = task_start_date.get(task.id, date.today())
             guard = 0
             while hours_left > 0.001:
                 guard += 1
