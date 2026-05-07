@@ -448,11 +448,29 @@
       aria-modal="true"
       aria-labelledby="availabilityTitle"
     >
-      <div class="modalPanel wide">
-        <div class="modalHead">
-          <div>
-            <div class="modal-eyebrow">Time windows</div>
-            <h2 id="availabilityTitle">Availability</h2>
+      <div class="modalPanel avPanel">
+        <!-- Header -->
+        <div class="avHeader">
+          <div class="avHeaderLeft">
+            <div class="avHeaderIcon" aria-hidden="true">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <polyline points="12 7 12 12 15 14" />
+              </svg>
+            </div>
+            <div>
+              <div class="modal-eyebrow">Time windows</div>
+              <h2 id="availabilityTitle">Availability</h2>
+            </div>
           </div>
           <button
             type="button"
@@ -463,14 +481,38 @@
             x
           </button>
         </div>
-        <div class="availabilityDefaults">
-          <div class="availabilityDefaultsRow">
-            <div>
-              <div class="availabilityDefaultsTitle">Daily default</div>
-              <div class="muted">Fallback when no specific slot is set.</div>
+
+        <!-- Scrollable body -->
+        <div class="avBody">
+          <!-- Daily default -->
+          <div class="avDefaultCard">
+            <div class="avDefaultCardLeft">
+              <div class="avDefaultCardIcon" aria-hidden="true">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <div>
+                <div class="avDefaultCardTitle">Daily default</div>
+                <div class="avDefaultCardSub">
+                  Fallback when no slot is set for a day
+                </div>
+              </div>
             </div>
-            <form id="defaultAvailabilityForm" class="availabilityDefaultsForm">
-              <div class="inputWithUnit">
+            <form id="defaultAvailabilityForm" class="avDefaultForm">
+              <div class="avDefaultInputWrap">
                 <input
                   name="daily_capacity"
                   id="defaultDailyCapacityInput"
@@ -480,38 +522,180 @@
                   step="0.25"
                   required
                 />
-                <span class="inputUnit">hrs</span>
+                <span class="avDefaultUnit">hrs</span>
               </div>
-              <button type="submit" class="ghost">Set</button>
+              <button type="submit" class="avDefaultSetBtn">Set</button>
             </form>
           </div>
-        </div>
-        <div class="divider"></div>
-        <form id="availabilityForm" class="modalForm">
-          <div class="field-row">
-            <div class="field">
-              <label>Date</label>
-              <input name="date" type="date" required />
-            </div>
-            <div class="field">
-              <label>Available hours</label>
-              <div class="inputWithUnit">
+
+          <!-- Divider with label -->
+          <div class="avSectionDivider">
+            <span class="avSectionDividerLine"></span>
+            <span class="avSectionDividerLabel">Add slots</span>
+            <span class="avSectionDividerLine"></span>
+          </div>
+
+          <!-- Tab switcher -->
+          <div class="avTabs" id="avTabs">
+            <button type="button" class="avTab active" data-tab="single">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              Single day
+            </button>
+            <button type="button" class="avTab" data-tab="repeat">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="17 1 21 5 17 9" />
+                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                <polyline points="7 23 3 19 7 15" />
+                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+              </svg>
+              Repeat weekly
+            </button>
+          </div>
+
+          <!-- Single day form -->
+          <form
+            id="availabilityForm"
+            class="avForm avTabPane"
+            data-pane="single"
+          >
+            <div class="avFormRow">
+              <div class="avFormField">
+                <label class="avLabel">Date</label>
                 <input
-                  name="available_hours"
-                  type="number"
-                  min="0"
-                  max="24"
-                  step="0.25"
+                  name="date"
+                  id="avSingleDate"
+                  type="date"
+                  class="avInput"
                   required
                 />
-                <span class="inputUnit">hrs</span>
+              </div>
+              <div class="avFormField avFormFieldSmall">
+                <label class="avLabel">Hours available</label>
+                <div class="avInputUnit">
+                  <input
+                    name="available_hours"
+                    id="avSingleHours"
+                    type="number"
+                    min="0"
+                    max="24"
+                    step="0.25"
+                    placeholder="0"
+                    class="avInput"
+                    required
+                  />
+                  <span class="avUnit">hrs</span>
+                </div>
               </div>
             </div>
+            <input type="hidden" name="type" value="available" />
+            <button type="submit" class="avSubmitBtn">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M7 1v12M1 7h12"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+              Add slot
+            </button>
+          </form>
+
+          <!-- Repeat weekly form -->
+          <form
+            id="availabilityRepeatForm"
+            class="avForm avTabPane hidden"
+            data-pane="repeat"
+          >
+            <div class="avFormField">
+              <label class="avLabel">Day of week</label>
+              <div class="avDayPicker" id="avDayPicker">
+                <button type="button" class="avDayBtn" data-day="1">Mon</button>
+                <button type="button" class="avDayBtn" data-day="2">Tue</button>
+                <button type="button" class="avDayBtn" data-day="3">Wed</button>
+                <button type="button" class="avDayBtn" data-day="4">Thu</button>
+                <button type="button" class="avDayBtn" data-day="5">Fri</button>
+                <button type="button" class="avDayBtn" data-day="6">Sat</button>
+                <button type="button" class="avDayBtn" data-day="0">Sun</button>
+              </div>
+            </div>
+            <div class="avFormRow avFormRow3">
+              <div class="avFormField">
+                <label class="avLabel">From</label>
+                <input id="avRepeatFrom" type="date" class="avInput" required />
+              </div>
+              <div class="avFormField">
+                <label class="avLabel">To</label>
+                <input id="avRepeatTo" type="date" class="avInput" required />
+              </div>
+              <div class="avFormField avFormFieldSmall">
+                <label class="avLabel">Hours / day</label>
+                <div class="avInputUnit">
+                  <input
+                    id="avRepeatHours"
+                    type="number"
+                    min="0"
+                    max="24"
+                    step="0.25"
+                    placeholder="0"
+                    class="avInput"
+                    required
+                  />
+                  <span class="avUnit">hrs</span>
+                </div>
+              </div>
+            </div>
+            <div class="avRepeatPreview" id="avRepeatPreview"></div>
+            <button type="submit" class="avSubmitBtn" id="avRepeatSubmitBtn">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="17 1 21 5 17 9" />
+                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+              </svg>
+              Add recurring slots
+            </button>
+          </form>
+
+          <!-- Slot list -->
+          <div class="avSlotSection">
+            <div class="avSlotSectionHead">
+              <span class="avSlotSectionLabel">Upcoming slots</span>
+            </div>
+            <div id="availabilityList" class="avSlotList"></div>
           </div>
-          <input type="hidden" name="type" value="available" />
-          <button type="submit" class="primary">Add slot</button>
-        </form>
-        <div id="availabilityList" class="taskList"></div>
+        </div>
+        <!-- /avBody -->
       </div>
     </div>
 
@@ -922,6 +1106,11 @@
 
         /* ── Override showToast / hideToast used by main.js ── */
         window.showToast = function (message, onUndo, ms) {
+          /* Availability modalı açıksa toast görünmeden önce kapat */
+          const avModal = document.getElementById("availabilityModal");
+          if (avModal && !avModal.classList.contains("hidden")) {
+            document.getElementById("closeAvailabilityBtn").click();
+          }
           showAlert(message, classify(message), onUndo || null);
         };
         window.hideToast = function () {};

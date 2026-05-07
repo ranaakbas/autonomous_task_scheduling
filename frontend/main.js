@@ -805,11 +805,14 @@ closeTasksBtn.addEventListener("click", () => setModal(false, "tasks"));
 async function fetchAvailabilityForModal() {
   const slots = await fetchJson("/availability");
   availabilityList.innerHTML = "";
+
+  const todayStr = toISODate(new Date());
   const availableOnly = (slots || []).filter(
-    (s) => !s.type || s.type === "available",
+    (s) => (!s.type || s.type === "available") && s.date >= todayStr,
   );
+
   if (!availableOnly.length) {
-    availabilityList.innerHTML = `<p class="empty">No slots. (If you did not enter available hours for this day, default capacity will be used.)</p>`;
+    availabilityList.innerHTML = `<p class="avEmpty">No upcoming slots — days without a slot use the default capacity.</p>`;
     return;
   }
   availableOnly.forEach((s) => {
@@ -821,22 +824,31 @@ async function fetchAvailabilityForModal() {
         : start !== null && end !== null
           ? Math.max(0, end - start)
           : null;
+
+    const hrsLabel =
+      hrs === null ? `${s.start_time}–${s.end_time}` : `${formatHours(hrs)}h`;
+
     const card = document.createElement("div");
-    card.className = "taskCard";
+    card.className = "avSlotCard";
     card.innerHTML = `
-      <div class="taskHead">
-        <strong>${s.date}</strong>
-        <span>available</span>
+      <div class="avSlotCardLeft">
+        <span class="avSlotDot"></span>
+        <span class="avSlotDate">${s.date}</span>
+        <span class="avSlotHours">available</span>
       </div>
-      <p class="muted">${hrs === null ? `${s.start_time} – ${s.end_time}` : `${formatHours(hrs)}h`}</p>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="avSlotHoursBadge">${hrsLabel}</span>
+        <button type="button" class="avSlotDeleteBtn" aria-label="Delete slot">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+          Delete
+        </button>
+      </div>
     `;
-    const actions = document.createElement("div");
-    actions.className = "rowActions";
-    const delBtn = document.createElement("button");
-    delBtn.type = "button";
-    delBtn.textContent = "Delete";
-    delBtn.className = "danger";
-    delBtn.onclick = async () => {
+
+    card.querySelector(".avSlotDeleteBtn").onclick = async () => {
       const ok = await showConfirm({
         eyebrow: "Delete availability slot",
         title: s.date,
@@ -851,14 +863,32 @@ async function fetchAvailabilityForModal() {
       await fetchAvailabilityForModal();
       await refreshPlanAndTasksStrip();
     };
-    actions.appendChild(delBtn);
-    card.appendChild(actions);
+
     availabilityList.appendChild(card);
   });
 }
 
 openAvailabilityBtn.addEventListener("click", async () => {
   availabilityForm.reset();
+
+  // Set today as the minimum selectable date for both date inputs
+  const todayStr = toISODate(new Date());
+  const avSingleDate = document.getElementById("avSingleDate");
+  const avRepeatFrom = document.getElementById("avRepeatFrom");
+  const avRepeatTo = document.getElementById("avRepeatTo");
+  if (avSingleDate) {
+    avSingleDate.min = todayStr;
+    avSingleDate.value = "";
+  }
+  if (avRepeatFrom) {
+    avRepeatFrom.min = todayStr;
+    avRepeatFrom.value = "";
+  }
+  if (avRepeatTo) {
+    avRepeatTo.min = todayStr;
+    avRepeatTo.value = "";
+  }
+
   await fetchAvailabilityForModal();
   try {
     const profile = await fetchJson("/profile");
@@ -906,14 +936,19 @@ availabilityForm.addEventListener("submit", async (e) => {
   try {
     const formData = new FormData(availabilityForm);
     const payload = Object.fromEntries(formData.entries());
-    if (payload.available_hours != null)
-      payload.available_hours = Number(payload.available_hours);
+    // Allow 0 — only reject truly non-numeric
+    const raw = payload.available_hours;
+    payload.available_hours = raw !== "" && raw != null ? Number(raw) : null;
     await fetchJson("/availability", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     availabilityForm.reset();
+    // re-apply min after reset
+    const todayStr = toISODate(new Date());
+    const avSingleDate = document.getElementById("avSingleDate");
+    if (avSingleDate) avSingleDate.min = todayStr;
     await fetchAvailabilityForModal();
     await refreshPlanAndTasksStrip();
     showToast("Availability slot added.");
@@ -921,6 +956,148 @@ availabilityForm.addEventListener("submit", async (e) => {
     showToast(`Could not add slot. ${err.message}`);
   }
 });
+
+/* ── Tab switcher ── */
+(function initAvTabs() {
+  const tabs = document.querySelectorAll(".avTab");
+  const panes = document.querySelectorAll(".avTabPane");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      tabs.forEach((t) => t.classList.remove("active"));
+      panes.forEach((p) => p.classList.add("hidden"));
+      tab.classList.add("active");
+      const target = tab.dataset.tab;
+      document
+        .querySelector(`.avTabPane[data-pane="${target}"]`)
+        ?.classList.remove("hidden");
+    });
+  });
+})();
+
+/* ── Day-of-week picker (repeat form) ── */
+let avSelectedDay = null;
+document.querySelectorAll(".avDayBtn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document
+      .querySelectorAll(".avDayBtn")
+      .forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    avSelectedDay = Number(btn.dataset.day);
+    updateRepeatPreview();
+  });
+});
+
+function updateRepeatPreview() {
+  const preview = document.getElementById("avRepeatPreview");
+  if (!preview) return;
+  const fromVal = document.getElementById("avRepeatFrom")?.value;
+  const toVal = document.getElementById("avRepeatTo")?.value;
+  const hoursVal = document.getElementById("avRepeatHours")?.value;
+  if (avSelectedDay === null || !fromVal || !toVal) {
+    preview.textContent = "";
+    return;
+  }
+  const dates = getRepeatDates(avSelectedDay, fromVal, toVal);
+  if (!dates.length) {
+    preview.textContent = "No matching dates in range.";
+    return;
+  }
+  const hrs = hoursVal !== "" && hoursVal != null ? Number(hoursVal) : "?";
+  preview.textContent = `${dates.length} slot${dates.length > 1 ? "s" : ""} will be added (${hrs}h each): ${dates.slice(0, 4).join(", ")}${dates.length > 4 ? ` … +${dates.length - 4} more` : ""}`;
+}
+
+["avRepeatFrom", "avRepeatTo", "avRepeatHours"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("input", updateRepeatPreview);
+});
+
+function getRepeatDates(dayOfWeek, fromStr, toStr) {
+  const result = [];
+  const from = new Date(fromStr + "T00:00:00");
+  const to = new Date(toStr + "T00:00:00");
+  if (isNaN(from) || isNaN(to) || from > to) return result;
+  const cur = new Date(from);
+  while (cur <= to) {
+    if (cur.getDay() === dayOfWeek) {
+      result.push(toISODate(cur));
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+const availabilityRepeatForm = document.getElementById(
+  "availabilityRepeatForm",
+);
+if (availabilityRepeatForm) {
+  availabilityRepeatForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (avSelectedDay === null) {
+      showToast("Please select a day of the week.");
+      return;
+    }
+    const fromVal = document.getElementById("avRepeatFrom").value;
+    const toVal = document.getElementById("avRepeatTo").value;
+    const hoursRaw = document.getElementById("avRepeatHours").value;
+    const hrs = hoursRaw !== "" ? Number(hoursRaw) : 0;
+
+    const todayStr = toISODate(new Date());
+    if (fromVal < todayStr || toVal < todayStr) {
+      showToast("Dates cannot be in the past.");
+      return;
+    }
+    const dates = getRepeatDates(avSelectedDay, fromVal, toVal);
+    if (!dates.length) {
+      showToast("No matching dates in the selected range.");
+      return;
+    }
+
+    const submitBtn = document.getElementById("avRepeatSubmitBtn");
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Adding…";
+    }
+
+    try {
+      let added = 0;
+      for (const date of dates) {
+        await fetchJson("/availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date,
+            available_hours: hrs,
+            type: "available",
+          }),
+        });
+        added++;
+      }
+      availabilityRepeatForm.reset();
+      document
+        .querySelectorAll(".avDayBtn")
+        .forEach((b) => b.classList.remove("active"));
+      avSelectedDay = null;
+      const preview = document.getElementById("avRepeatPreview");
+      if (preview) preview.textContent = "";
+      // re-apply min
+      const todayStrNow = toISODate(new Date());
+      const avRepeatFrom = document.getElementById("avRepeatFrom");
+      const avRepeatTo = document.getElementById("avRepeatTo");
+      if (avRepeatFrom) avRepeatFrom.min = todayStrNow;
+      if (avRepeatTo) avRepeatTo.min = todayStrNow;
+
+      await fetchAvailabilityForModal();
+      await refreshPlanAndTasksStrip();
+      showToast(`${added} recurring slot${added > 1 ? "s" : ""} added.`);
+    } catch (err) {
+      showToast(`Could not add slots. ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Add recurring slots";
+      }
+    }
+  });
+}
 
 modalBackdrop.addEventListener("click", () => {
   setModal(false, "create");
