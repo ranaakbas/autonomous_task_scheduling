@@ -90,6 +90,7 @@ class ScheduleTask(BaseModel):
     )
     status: str
     undoable: bool = False
+    task_done_locked: bool = False
     # For balanced tasks: the daily target so the frontend knows the Done threshold
     daily_target_hours: Optional[float] = None
 

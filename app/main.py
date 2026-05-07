@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Cookie, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from . import models, schemas
@@ -477,10 +477,9 @@ class UserSchedulingEngine:
                     available_hours += dur
             raw = available_hours if has_explicit_available else base_fallback
 
-        # Only non-balanced completed items consume daily capacity.
-        # Balanced items have their own "1 session per day" logic and should NOT
-        # reduce the day's capacity — otherwise the scheduler would see leftover
-        # capacity and assign another task's session to the same day.
+        # Any completed schedule item consumes daily capacity, including balanced.
+        # This ensures marking an item/task Done correctly reduces that day's
+        # available hours and prevents over-allocation on reschedule.
         completed_items = (
             self.db.query(models.UserScheduleItem)
             .filter(
@@ -492,22 +491,7 @@ class UserSchedulingEngine:
         )
         consumed = 0.0
         for ci in completed_items:
-            # Look up the task's work style to exclude balanced items
-            task_obj = (
-                self.db.query(models.UserTask)
-                .filter(
-                    models.UserTask.id == ci.task_id,
-                    models.UserTask.user_id == self.user_id,
-                )
-                .first()
-            )
-            ws = (
-                getattr(task_obj, "work_style", "intensive")
-                if task_obj
-                else "intensive"
-            )
-            if ws != "balanced":
-                consumed += float(ci.completed_duration or 0.0)
+            consumed += float(ci.completed_duration or 0.0)
         return max(0.0, min(max(0.0, raw - consumed), max_cap))
 
     def generate_schedule(self):
@@ -564,6 +548,13 @@ class UserSchedulingEngine:
         max_deadline = date.today()
         if tasks:
             max_deadline = max(t.deadline for t in tasks)
+        latest_scheduled_day = (
+            self.db.query(func.max(models.UserScheduleItem.date))
+            .filter(models.UserScheduleItem.user_id == self.user_id)
+            .scalar()
+        )
+        if latest_scheduled_day and latest_scheduled_day > max_deadline:
+            max_deadline = latest_scheduled_day
         horizon_end = max_deadline + timedelta(days=21)
 
         remaining_by_date: dict = defaultdict(float)
@@ -860,6 +851,16 @@ class UserSchedulingEngine:
                 .all()
                 if sid is not None
             }
+        done_locked_task_ids = {
+            tid
+            for (tid,) in self.db.query(models.UserActionLog.task_id)
+            .filter(
+                models.UserActionLog.user_id == self.user_id,
+                models.UserActionLog.action_type == "done",
+            )
+            .all()
+            if tid is not None
+        }
 
         grouped = defaultdict(list)
         for row in rows:
@@ -884,6 +885,7 @@ class UserSchedulingEngine:
                     "task_remaining_duration": tr,
                     "status": row.status,
                     "undoable": row.id in undoable_ids,
+                    "task_done_locked": bool(row.task_id in done_locked_task_ids),
                     "daily_target_hours": (
                         t_daily_target if t_work_style == "balanced" else None
                     ),
@@ -941,29 +943,14 @@ def update_schedule_item(
     task = _get_user_task_or_404(item.task_id, current_user.id, db)
     completed_hours = float(update.completed_hours)
 
-    rows = (
-        db.query(models.UserScheduleItem)
-        .filter(models.UserScheduleItem.user_id == current_user.id)
-        .order_by(models.UserScheduleItem.id.asc())
-        .all()
-    )
-    schedule_snapshot = [
-        {
-            "id": r.id,
-            "task_id": r.task_id,
-            "date": r.date.isoformat(),
-            "duration": float(r.duration),
-            "completed_duration": float(getattr(r, "completed_duration", 0.0) or 0.0),
-            "status": r.status,
-            "handled_at": r.handled_at.isoformat() if r.handled_at else None,
-        }
-        for r in rows
-    ]
+    task_remaining_before = float(task.remaining_duration)
+    task_completed_before = bool(task.completed)
     prev_state = {
         "task": {
             "id": task.id,
-            "remaining_duration": float(task.remaining_duration),
-            "completed": bool(task.completed),
+            "remaining_duration_before": task_remaining_before,
+            "completed_before": task_completed_before,
+            "remaining_delta": 0.0,
         },
         "schedule_item": {
             "id": item.id,
@@ -973,7 +960,6 @@ def update_schedule_item(
             ),
             "handled_at": item.handled_at.isoformat() if item.handled_at else None,
         },
-        "schedule_snapshot": schedule_snapshot,
     }
 
     item.completed_duration = completed_hours
@@ -990,6 +976,7 @@ def update_schedule_item(
         if completed_hours >= daily_target - 1e-9:
             # Full session completed — mark done and deduct one session
             item.status = "completed"
+            prev_state["task"]["remaining_delta"] = -float(daily_target)
             task.remaining_duration = max(
                 0.0, float(task.remaining_duration) - daily_target
             )
@@ -998,6 +985,7 @@ def update_schedule_item(
             item.status = "missed"
     else:
         item.status = "completed"
+        prev_state["task"]["remaining_delta"] = -float(completed_hours)
         task.remaining_duration = max(
             0.0, float(task.remaining_duration) - completed_hours
         )
@@ -1042,32 +1030,58 @@ def undo_schedule_item(
         raise HTTPException(status_code=404, detail="No undo entry found")
     prev = json.loads(log.previous_state)
     task = _get_user_task_or_404(prev["task"]["id"], current_user.id, db)
-    task.remaining_duration = prev["task"]["remaining_duration"]
-    task.completed = prev["task"]["completed"]
+    item = (
+        db.query(models.UserScheduleItem)
+        .filter(
+            models.UserScheduleItem.id == item_id,
+            models.UserScheduleItem.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Schedule item not found")
 
-    snapshot = prev.get("schedule_snapshot", [])
-    if snapshot:
-        db.query(models.UserScheduleItem).filter(
-            models.UserScheduleItem.user_id == current_user.id
-        ).delete()
-        for row in snapshot:
-            db.add(
-                models.UserScheduleItem(
-                    user_id=current_user.id,
-                    task_id=row["task_id"],
-                    date=date.fromisoformat(row["date"]),
-                    duration=row["duration"],
-                    completed_duration=row["completed_duration"],
-                    status=row["status"],
-                    handled_at=(
-                        datetime.fromisoformat(row["handled_at"])
-                        if row["handled_at"]
-                        else None
-                    ),
+    # New granular undo format: revert only this schedule item and its task delta.
+    if "remaining_delta" in prev.get("task", {}):
+        if item.status == "pending":
+            raise HTTPException(status_code=400, detail="Schedule item already pending")
+        remaining_delta = float(prev["task"].get("remaining_delta", 0.0))
+        reverted_remaining = float(task.remaining_duration) - remaining_delta
+        task.remaining_duration = max(
+            0.0, min(float(task.total_duration), reverted_remaining)
+        )
+        task.completed = task.remaining_duration <= 1e-9
+        item.status = "pending"
+        item.completed_duration = 0.0
+        item.handled_at = None
+    else:
+        # Legacy fallback: preserve compatibility with old full-snapshot logs.
+        task.remaining_duration = prev["task"]["remaining_duration"]
+        task.completed = prev["task"]["completed"]
+        snapshot = prev.get("schedule_snapshot", [])
+        if snapshot:
+            db.query(models.UserScheduleItem).filter(
+                models.UserScheduleItem.user_id == current_user.id
+            ).delete()
+            for row in snapshot:
+                db.add(
+                    models.UserScheduleItem(
+                        user_id=current_user.id,
+                        task_id=row["task_id"],
+                        date=date.fromisoformat(row["date"]),
+                        duration=row["duration"],
+                        completed_duration=row["completed_duration"],
+                        status=row["status"],
+                        handled_at=(
+                            datetime.fromisoformat(row["handled_at"])
+                            if row["handled_at"]
+                            else None
+                        ),
+                    )
                 )
-            )
     db.delete(log)
     db.add(task)
+    db.add(item)
     db.commit()
     return get_plan(db=db, current_user=current_user)
 

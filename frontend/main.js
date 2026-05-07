@@ -628,6 +628,7 @@ function renderCalendar() {
 
       const canUndoFromStatus =
         (t.status === "completed" || t.status === "missed") &&
+        !t.task_done_locked &&
         (Boolean(t.undoable) || pendingUndoByChunkId.has(t.id));
       if (canUndoFromStatus) {
         const undoFn = pendingUndoByChunkId.get(t.id);
@@ -672,14 +673,29 @@ async function fetchTasksForModal() {
     taskList.innerHTML = `<p class="empty">No tasks.</p>`;
     return;
   }
-  tasks.forEach((task) => {
+  const todayISO = toISODate(new Date());
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const aOverdue = !a.completed && a.deadline < todayISO;
+    const bOverdue = !b.completed && b.deadline < todayISO;
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+    return String(a.deadline).localeCompare(String(b.deadline));
+  });
+  sortedTasks.forEach((task) => {
+    const isOverdue = !task.completed && task.deadline < todayISO;
     const card = document.createElement("div");
     card.className = "taskCard";
+    if (isOverdue) card.classList.add("taskCardOverdue");
     const doneLabel = task.completed ? " (completed)" : "";
+    const overdueBanner = isOverdue
+      ? `<span class="taskDeadlineBanner">Deadline'ı geçti</span>`
+      : "";
     card.innerHTML = `
       <div class="taskHead">
         <strong>${task.title}</strong>
-        <span>${task.deadline}</span>
+        <div class="taskMeta">
+          <span class="taskDeadline">${task.deadline}</span>
+          ${overdueBanner}
+        </div>
       </div>
       <p class="muted">${
         task.work_style === "balanced" && task.daily_target_hours
