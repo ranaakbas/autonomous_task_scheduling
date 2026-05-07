@@ -88,9 +88,11 @@ class SchedulingEngine:
         for (task_id,) in missed_today_task_ids:
             task_start_date[int(task_id)] = date.today() + timedelta(days=1)
 
+        today = date.today()
+
         for task in tasks:
             hours_left = float(task.remaining_duration)
-            day = task_start_date.get(task.id, date.today())
+            day = task_start_date.get(task.id, today)
             guard = 0
             while hours_left > 0.001:
                 guard += 1
@@ -98,10 +100,11 @@ class SchedulingEngine:
                     warnings.append("Scheduler stopped early due to iteration limits.")
                     break
                 if day > task.deadline:
-                    warnings.append(
-                        f"Not enough calendar time before deadline for «{task.title}». "
-                        "Increase daily capacity or extend the deadline."
-                    )
+                    if task.deadline >= today:
+                        warnings.append(
+                            f"Not enough calendar time before deadline for «{task.title}». "
+                            "Increase daily capacity or extend the deadline."
+                        )
                     break
                 if day > horizon_end:
                     warnings.append(
@@ -142,7 +145,7 @@ class SchedulingEngine:
 
         self.db.commit()
 
-        range_start = date.today() - timedelta(days=7)
+        range_start = today - timedelta(days=7)
         range_end = horizon_end
         schedule = self._serialize_schedule(range_start, range_end)
         return schedule, warnings

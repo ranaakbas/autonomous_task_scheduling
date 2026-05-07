@@ -648,6 +648,8 @@ class UserSchedulingEngine:
             ):
                 balanced_claimed.add((_date, int(_task_id)))
 
+        today = date.today()
+
         for task in tasks:
             hours_left = float(task.remaining_duration)
             work_style = getattr(task, "work_style", "intensive") or "intensive"
@@ -655,14 +657,14 @@ class UserSchedulingEngine:
 
             # Build ordered list of available days: today → deadline
             available_days: list[date] = []
-            d = date.today()
+            d = today
             while d <= task.deadline:
                 if d not in skipped and remaining_by_date.get(d, 0.0) > 0.001:
                     available_days.append(d)
                 d += timedelta(days=1)
 
             if not available_days:
-                if hours_left > 0.001:
+                if hours_left > 0.001 and task.deadline >= today:
                     warnings.append(
                         f"Not enough calendar time before deadline for «{task.title}»."
                     )
@@ -720,7 +722,7 @@ class UserSchedulingEngine:
                 # Each day can only hold ONE balanced task session (balanced_claimed_dates
                 # guards this). Intensive/df tasks can still fill remaining capacity on
                 # the same day — only other balanced tasks are blocked.
-                d = date.today()
+                d = today
                 while hours_remaining > 0.001 and d <= task.deadline:
                     if d in skipped or (d, task.id) in balanced_claimed:
                         d += timedelta(days=1)
@@ -777,13 +779,17 @@ class UserSchedulingEngine:
             # total_duration (daily_target × original days) wasn't fully consumed —
             # this is expected if the user has already completed some sessions.
             # Only warn for non-balanced tasks, or if balanced truly ran out of days.
-            if hours_remaining > 0.001 and work_style != "balanced":
+            if (
+                hours_remaining > 0.001
+                and work_style != "balanced"
+                and task.deadline >= today
+            ):
                 warnings.append(
                     f"Not enough calendar time before deadline for «{task.title}»."
                 )
 
         self.db.commit()
-        range_start = date.today() - timedelta(days=7)
+        range_start = today - timedelta(days=7)
         range_end = horizon_end
         return self._serialize(range_start, range_end), warnings
 
