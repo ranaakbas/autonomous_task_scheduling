@@ -380,7 +380,7 @@ function showCompleteModal(chunk) {
         </div>
         <p class="cmHint muted">${
           isBalanced
-            ? `Hedef: günlük <strong>${formatHours(dailyTarget)}h</strong>. Bu saate ulaşırsan gün Done sayılır ve görev ertesi güne geçer.`
+            ? `Target: <strong>${formatHours(dailyTarget)}h</strong> daily. If you reach this amount, the day counts as Done and the task moves to the next day.`
             : "You can log more than assigned (overstudy). Extra hours reduce this task&rsquo;s remaining time and the schedule rebuilds from what is left."
         }</p>
         <div class="cmBody">
@@ -687,7 +687,7 @@ async function fetchTasksForModal() {
     if (isOverdue) card.classList.add("taskCardOverdue");
     const doneLabel = task.completed ? " (completed)" : "";
     const overdueBanner = isOverdue
-      ? `<span class="taskDeadlineBanner">Deadline'ı geçti</span>`
+      ? `<span class="taskDeadlineBanner">Past deadline</span>`
       : "";
     card.innerHTML = `
       <div class="taskHead">
@@ -699,7 +699,7 @@ async function fetchTasksForModal() {
       </div>
       <p class="muted">${
         task.work_style === "balanced" && task.daily_target_hours
-          ? `${task.daily_target_hours}h/gün | difficulty ${task.difficulty}${doneLabel}`
+          ? `${task.daily_target_hours}h/day | difficulty ${task.difficulty}${doneLabel}`
           : `${task.total_duration}h planned | ${task.remaining_duration}h remaining | difficulty ${task.difficulty}${doneLabel}`
       }</p>
     `;

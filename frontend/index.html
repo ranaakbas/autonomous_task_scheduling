@@ -317,7 +317,7 @@
               <input id="cf-deadline" name="deadline" type="date" required />
             </div>
             <div class="field" id="cf-total-hours-field">
-              <label for="cf-hours">Toplam saat</label>
+              <label for="cf-hours">Total hours</label>
               <input
                 id="cf-hours"
                 name="total_duration"
@@ -328,7 +328,7 @@
               />
             </div>
             <div class="field" id="cf-daily-hours-field" style="display: none">
-              <label for="cf-daily-hours">Günlük saat</label>
+              <label for="cf-daily-hours">Daily hours</label>
               <input
                 id="cf-daily-hours"
                 name="daily_target_hours"
@@ -361,7 +361,7 @@
             </div>
           </div>
           <div class="field">
-            <label>Çalışma Stili</label>
+            <label>Work Style</label>
             <input
               type="hidden"
               name="work_style"
@@ -375,16 +375,16 @@
                 data-style="intensive"
               >
                 <span class="workStyleIcon">⚡</span>
-                <span class="workStyleLabel">En kısa sürede bitir</span>
+                <span class="workStyleLabel">Finish as early as possible</span>
                 <span class="workStyleDesc"
-                  >Kapasiteyi doldur, erken tamamla</span
+                  >Fill capacity and finish early</span
                 >
               </button>
               <button type="button" class="workStyleBtn" data-style="balanced">
                 <span class="workStyleIcon">⚖️</span>
-                <span class="workStyleLabel">Düzenli dağıt</span>
+                <span class="workStyleLabel">Distribute evenly</span>
                 <span class="workStyleDesc"
-                  >Deadline'a kadar eşit paylaştır</span
+                  >Split evenly until the deadline</span
                 >
               </button>
               <button
@@ -393,8 +393,8 @@
                 data-style="deadline_focused"
               >
                 <span class="workStyleIcon">🎯</span>
-                <span class="workStyleLabel">Deadline'a yakın çalış</span>
-                <span class="workStyleDesc">Son yarıya yoğunlaştır</span>
+                <span class="workStyleLabel">Work closer to the deadline</span>
+                <span class="workStyleDesc">Concentrate in the second half</span>
               </button>
             </div>
           </div>
@@ -944,7 +944,7 @@
         /* ── Alert type config ── */
         const TYPES = {
           error: {
-            label: "Hata",
+            label: "Error",
             duration: 10000,
             icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                    <path d="M10 3L18 17H2L10 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
@@ -952,7 +952,7 @@
                  </svg>`,
           },
           warning: {
-            label: "Uyari",
+            label: "Warning",
             duration: 10000,
             icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                    <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
@@ -960,7 +960,7 @@
                  </svg>`,
           },
           success: {
-            label: "Basarili",
+            label: "Success",
             duration: 10000,
             icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                    <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
@@ -968,7 +968,7 @@
                  </svg>`,
           },
           info: {
-            label: "Bilgi",
+            label: "Info",
             duration: 10000,
             icon: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                    <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.6"/>
@@ -1037,10 +1037,10 @@
             clean(rawMsg) +
             "</p>" +
             (undoFn
-              ? '<button type="button" class="al-undo">Geri al</button>'
+              ? '<button type="button" class="al-undo">Undo</button>'
               : "") +
             "</div>" +
-            '<button type="button" class="al-close" aria-label="Kapat">' +
+            '<button type="button" class="al-close" aria-label="Close">' +
             '<svg width="10" height="10" viewBox="0 0 10 10" fill="none">' +
             '<path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
             "</svg>" +
@@ -1106,7 +1106,7 @@
 
         /* ── Override showToast / hideToast used by main.js ── */
         window.showToast = function (message, onUndo, ms) {
-          /* Availability modalı açıksa toast görünmeden önce kapat */
+          /* If availability modal is open, close before showing toast */
           const avModal = document.getElementById("availabilityModal");
           if (avModal && !avModal.classList.contains("hidden")) {
             document.getElementById("closeAvailabilityBtn").click();
