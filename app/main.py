@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import Base, engine, get_db
-from .services import CohereService, SchedulingEngine
+from .services import GeminiAgentService, SchedulingEngine
 from .auth import auth_router, get_current_user, get_current_user_optional
 
 
@@ -186,7 +186,7 @@ app.add_middleware(
 # Register auth routes
 app.include_router(auth_router)
 
-cohere_service = CohereService()
+gemini_service = GeminiAgentService()
 static_dir = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -911,7 +911,7 @@ def get_plan(
 ):
     eng = UserSchedulingEngine(db, current_user.id)
     schedule, warnings = eng.generate_schedule()
-    explanation = cohere_service.explain_plan(len(schedule), warnings)
+    explanation = gemini_service.explain_plan(len(schedule), warnings)
     return {"schedule": schedule, "warnings": warnings, "explanation": explanation}
 
 
