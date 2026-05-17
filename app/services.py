@@ -441,18 +441,27 @@ Planning horizon: {today.isoformat()} to {horizon_end.isoformat()}
 - Minimum chunk size: 0.25h.
 
 ## Work Style Rules
-- intensive: Fill days from today forward, packing as much as possible each day.
+- balanced: SCHEDULE THESE FIRST before any other style.
+  Assign exactly daily_target_hours per day, every day from today to the deadline (one session per day).
+  Do NOT skip days just because other tasks filled them — balanced tasks must appear on every day.
+  If a day has less remaining capacity than daily_target_hours, assign whatever is left.
+- intensive: Schedule AFTER all balanced tasks are placed.
+  Fill days from today forward, packing as much as possible each day into whatever capacity remains.
   Prioritize by deadline (earliest first), then difficulty (hardest first).
-- balanced: Assign exactly daily_target_hours per day, one session per day for this task.
-  Spread sessions from today to the deadline evenly.
-- deadline_focused: Schedule from the deadline BACKWARD (latest days first).
-  Reserve capacity close to the deadline. Prioritize easier tasks first.
+- deadline_focused: Schedule LAST.
+  Schedule from the deadline BACKWARD (latest days first), into remaining capacity.
+  Prioritize easier tasks first.
+
+## Processing Order (IMPORTANT)
+1. First: all "balanced" tasks (reserve their daily slots across the full date range)
+2. Then: all "intensive" tasks (fill remaining capacity, earliest deadline first)
+3. Last: all "deadline_focused" tasks (back-fill from deadline, easiest first)
 
 ## Capacity Management
 After each create_schedule_item call the day's capacity is automatically reduced.
 Always keep track of how many hours you've assigned so you don't over-schedule.
 
-Be systematic: process one task at a time, finish it completely before moving on.
+Be systematic: process all balanced tasks first, then intensive, then deadline_focused.
 """
 
     def _build_user_message(
@@ -497,12 +506,19 @@ Be systematic: process one task at a time, finish it completely before moving on
             remaining_by_date[d] = self._daily_capacity_for(d, profile)
             d += timedelta(days=1)
 
-        non_df_tasks = sorted(
+        balanced_tasks = sorted(
             [
                 t
                 for t in tasks
-                if (getattr(t, "work_style", "intensive") or "intensive")
-                != "deadline_focused"
+                if (getattr(t, "work_style", "intensive") or "intensive") == "balanced"
+            ],
+            key=lambda t: (t.deadline, -t.difficulty),
+        )
+        intensive_tasks = sorted(
+            [
+                t
+                for t in tasks
+                if (getattr(t, "work_style", "intensive") or "intensive") == "intensive"
             ],
             key=lambda t: (t.deadline, -t.difficulty),
         )
@@ -515,7 +531,9 @@ Be systematic: process one task at a time, finish it completely before moving on
             ],
             key=lambda t: (t.deadline, t.difficulty),
         )
-        sorted_tasks = non_df_tasks + df_tasks
+        # balanced önce: her gün için daily_target saatlerini reserve eder,
+        # intensive ve deadline_focused kalan kapasiteye göre doldurur.
+        sorted_tasks = balanced_tasks + intensive_tasks + df_tasks
 
         # Missed görevlerin tarihleri
         missed_rows = (
@@ -531,8 +549,39 @@ Be systematic: process one task at a time, finish it completely before moving on
         for task_id, missed_day in missed_rows:
             skipped_dates_by_task[int(task_id)].add(missed_day)
 
-        # deadline_focused ön-rezervasyon
-        df_reserved: dict[int, dict[date, float]] = {}
+        # ── 1. Balanced görevler için günlük hedef saatleri önceden reserve et ──────
+        # Böylece intensive ve deadline_focused görevler balanced'ın
+        # daily_target saatlerini çalmaz.
+        balanced_prereserved: dict[int, dict[date, float]] = {}
+        for task in balanced_tasks:
+            daily_target = float(getattr(task, "daily_target_hours", None) or 0.0)
+            skipped = skipped_dates_by_task.get(task.id, set())
+            if daily_target <= 0.001:
+                all_days_count = sum(
+                    1
+                    for n in range((task.deadline - today).days + 1)
+                    if (today + timedelta(n)) not in skipped
+                )
+                hours_left_tmp = float(task.remaining_duration)
+                daily_target = (
+                    max(round((hours_left_tmp / all_days_count) * 4) / 4, 0.25)
+                    if all_days_count
+                    else 0.25
+                )
+            reserved_bal: dict[date, float] = {}
+            d = today
+            while d <= task.deadline:
+                if d not in skipped and (d, task.id) not in balanced_claimed:
+                    cap = remaining_by_date.get(d, 0.0)
+                    if cap >= 0.001:
+                        chunk = round(min(daily_target, cap) * 4) / 4
+                        if chunk >= 0.001:
+                            reserved_bal[d] = chunk
+                            remaining_by_date[d] -= chunk
+                d += timedelta(days=1)
+            balanced_prereserved[task.id] = reserved_bal
+
+        # ── 2. deadline_focused ön-rezervasyon (kalan kapasiteye göre) ────────────        df_reserved: dict[int, dict[date, float]] = {}
         for task in df_tasks:
             hours_left = float(task.remaining_duration)
             skipped = skipped_dates_by_task.get(task.id, set())
@@ -633,46 +682,27 @@ Be systematic: process one task at a time, finish it completely before moving on
                     hours_remaining -= chunk
 
             elif work_style == "balanced":
-                daily_target = float(getattr(task, "daily_target_hours", None) or 0.0)
-                if daily_target <= 0.001:
-                    all_days = [
-                        today + timedelta(n)
-                        for n in range((task.deadline - today).days + 1)
-                        if (today + timedelta(n)) not in skipped
-                    ]
-                    daily_target = (
-                        max(round((hours_left / len(all_days)) * 4) / 4, 0.25)
-                        if all_days
-                        else 0.25
-                    )
-
-                d = today
-                while hours_remaining > 0.001 and d <= task.deadline:
-                    if d in skipped or (d, task.id) in balanced_claimed:
-                        d += timedelta(days=1)
+                # Pre-reserved slotları kullan — kapasite zaten önceden düşüldü.
+                reserved_bal = balanced_prereserved.get(task.id, {})
+                for day in sorted(reserved_bal.keys()):
+                    if hours_remaining <= 0.001:
+                        break
+                    if (day, task.id) in balanced_claimed:
                         continue
-                    cap = remaining_by_date.get(d, 0.0)
-                    if cap < 0.001:
-                        d += timedelta(days=1)
-                        continue
-                    chunk = round(min(hours_remaining, daily_target, cap) * 4) / 4
-                    chunk = min(chunk, hours_remaining, cap)
+                    chunk = round(min(reserved_bal[day], hours_remaining) * 4) / 4
                     if chunk < 0.001:
-                        d += timedelta(days=1)
                         continue
                     self.db.add(
                         models.UserScheduleItem(
                             user_id=self.user_id,
                             task_id=task.id,
-                            date=d,
+                            date=day,
                             duration=chunk,
                             status="pending",
                         )
                     )
-                    remaining_by_date[d] -= chunk
                     hours_remaining -= chunk
-                    balanced_claimed.add((d, task.id))
-                    d += timedelta(days=1)
+                    balanced_claimed.add((day, task.id))
 
             else:  # deadline_focused
                 reserved = df_reserved.get(task.id, {})
